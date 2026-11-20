@@ -7,7 +7,9 @@ import {
   Clock,
   GraduationCap,
   Map as MapIcon,
+  Moon,
   Sun,
+  Undo2,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import {
@@ -23,23 +25,30 @@ import { RouteMap, type MapStopPoint } from './RouteMap'
 interface JourneyCardProps {
   match: JourneyMatch
   stopMap: Map<string, BusStop>
-  isNextBus: boolean
+  highlightLabel?: string | null
+  isLastBus?: boolean
+  dayLabel?: string
   isToday: boolean
   nowMins: number
   onInspectRoute: (routeId: string) => void
+  onCheckReturn?: (arrivalHHMM: string) => void
 }
 
 export function JourneyCard({
   match,
   stopMap,
-  isNextBus,
+  highlightLabel = null,
+  isLastBus = false,
+  dayLabel = 'today',
   isToday,
   nowMins,
   onInspectRoute,
+  onCheckReturn,
 }: JourneyCardProps) {
   const [showStops, setShowStops] = useState(false)
   const [showMap, setShowMap] = useState(false)
 
+  const isHighlighted = Boolean(highlightLabel)
   const countdown = isToday ? formatCountdown(match.boardTime, nowMins) : null
   const boardDisplayName = formatStopDisplayName(match.boardStop)
   const alightDisplayName = formatStopDisplayName(match.alightStop)
@@ -86,16 +95,16 @@ export function JourneyCard({
   return (
     <article
       className={`overflow-hidden rounded-2xl border bg-white transition-shadow ${
-        isNextBus
+        isHighlighted
           ? 'border-[#00838f] shadow-md ring-1 ring-[#00838f]/20'
           : 'border-[#DCE4E4] shadow-xs hover:shadow-sm'
       }`}
     >
-      {isNextBus && (
-        <div className="flex items-center justify-between bg-[#00838f] px-4 py-2 text-xs font-bold text-white">
+      {isHighlighted && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#00838f] px-4 py-2 text-xs font-bold text-white">
           <span className="inline-flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-            Next bus
+            <span>{highlightLabel}</span>
           </span>
           {countdown && <span className="tabular-nums">{countdown}</span>}
         </div>
@@ -134,7 +143,7 @@ export function JourneyCard({
             <span className="inline-flex items-center rounded-lg bg-[#E4F4F6] px-2.5 py-1 text-sm font-bold text-[#005A63] tabular-nums">
               {formatDuration(match.durationMins)}
             </span>
-            {!isNextBus && countdown && (
+            {!isHighlighted && countdown && (
               <span className="text-xs font-bold text-[#006B75] tabular-nums">{countdown}</span>
             )}
           </div>
@@ -202,6 +211,13 @@ export function JourneyCard({
             {formatDaysPlainEnglish(match.trip.days)}
           </span>
 
+          {isLastBus && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-2.5 py-1 text-xs font-bold text-[#991B1B]">
+              <Moon className="h-3.5 w-3.5" aria-hidden="true" />
+              Last bus {dayLabel}
+            </span>
+          )}
+
           {match.trip.schoolOnly && (
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#FEF3C7] px-2.5 py-1 text-xs font-bold text-[#92400E]">
               <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
@@ -261,6 +277,17 @@ export function JourneyCard({
             <MapIcon className="h-4 w-4" aria-hidden="true" />
             <span>{showMap ? 'Hide map' : 'Show on map'}</span>
           </button>
+
+          {onCheckReturn && (
+            <button
+              type="button"
+              onClick={() => onCheckReturn(match.alightTime)}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-2 border-[#95398d]/35 bg-[#FBF6FB] px-4 py-2 text-sm font-bold text-[#7A2D73] transition-colors hover:border-[#95398d] hover:bg-[#95398d] hover:text-white sm:w-auto"
+            >
+              <Undo2 className="h-4 w-4" aria-hidden="true" />
+              <span>Check return buses</span>
+            </button>
+          )}
         </div>
 
         {/* Expandable Stop-by-Stop Timeline */}
