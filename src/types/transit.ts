@@ -100,6 +100,34 @@ export interface JourneyMatch {
   toIndices: number[]
 }
 
+export interface JourneyLeg {
+  route: RouteSummary
+  direction: 'outbound' | 'inbound'
+  directionLabel: string
+  trip: Trip
+  boardStop: BusStop
+  boardTime: string
+  boardIndex: number
+  alightStop: BusStop
+  alightTime: string
+  alightIndex: number
+  durationMins: number
+  stopsBetween: number
+  fromIndices: number[]
+  toIndices: number[]
+}
+
+export interface ConnectingJourneyMatch {
+  key: string
+  leg1: JourneyLeg
+  leg2: JourneyLeg
+  totalDurationMins: number
+  waitMins: number
+  walkMetres: number
+  walkMins: number
+  changeAtLabel: string
+}
+
 export type TimeFilterMode = 'now' | 'after' | 'all'
 
 export type ActiveTab = 'planner' | 'routes' | 'map'

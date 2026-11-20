@@ -7,17 +7,20 @@ import {
   GraduationCap,
   Info,
   Loader2,
+  Repeat2,
   Sparkles,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { loadRouteSchedules } from '../lib/data'
 import {
   findCandidateRoutes,
+  findTransferRouteCandidates,
   formatMinutesToHHMM,
   getCurrentMinutes,
   getTodayDayCode,
   getTomorrowDayCode,
   haversineKm,
+  matchConnectingJourneys,
   matchJourneysFromSchedules,
   parseTimeToMinutes,
 } from '../lib/transit'
@@ -25,6 +28,7 @@ import {
   DAY_CODES,
   DAY_FULL_NAMES,
   type BusStop,
+  type ConnectingJourneyMatch,
   type DayCode,
   type JourneyMatch,
   type PlaceOption,
@@ -32,6 +36,7 @@ import {
   type RouteSummary,
   type TimeFilterMode,
 } from '../types/transit'
+import { ConnectingJourneyCard } from './ConnectingJourneyCard'
 import { JourneyCard } from './JourneyCard'
 import { PlaceAutocomplete } from './PlaceAutocomplete'
 
@@ -51,8 +56,8 @@ interface JourneyPlannerViewProps {
 const POPULAR_PAIRS: Array<{ fromQuery: string; toQuery: string; label: string }> = [
   { fromQuery: 'annan', toQuery: 'dumfries', label: 'Annan → Dumfries' },
   { fromQuery: 'dumfries', toQuery: 'dgri', label: 'Dumfries → DGRI Hospital' },
+  { fromQuery: 'lockerbie', toQuery: 'castle douglas', label: 'Lockerbie → Castle Douglas' },
   { fromQuery: 'castle douglas', toQuery: 'dumfries', label: 'Castle Douglas → Dumfries' },
-  { fromQuery: 'lockerbie', toQuery: 'dumfries', label: 'Lockerbie → Dumfries' },
   { fromQuery: 'dumfries', toQuery: 'stranraer', label: 'Dumfries → Stranraer' },
 ]
 
@@ -78,11 +83,18 @@ export function JourneyPlannerView({
   )
   const [hideSchoolOnly, setHideSchoolOnly] = useState(false)
   const [showEarlierKey, setShowEarlierKey] = useState<string | null>(null)
+  const [showConnectionsForKey, setShowConnectionsForKey] = useState<string | null>(null)
 
-  const [loadedSchedules, setLoadedSchedules] = useState<{
+  const [loadedDirect, setLoadedDirect] = useState<{
     key: string
     map: Map<string, RouteSchedule>
   }>({ key: '', map: new Map() })
+
+  const [loadedTransfers, setLoadedTransfers] = useState<{
+    key: string
+    map: Map<string, RouteSchedule>
+  }>({ key: '', map: new Map() })
+
   const [nearMeLoading, setNearMeLoading] = useState(false)
   const [geoMessage, setGeoMessage] = useState<string | null>(null)
   const [nowMins, setNowMins] = useState<number>(() => getCurrentMinutes())
@@ -109,13 +121,17 @@ export function JourneyPlannerView({
   )
 
   const searchKey = `${fromPlace?.id ?? ''}->${toPlace?.id ?? ''}:${selectedDay}`
+  const pairKey = `${fromPlace?.id ?? ''}->${toPlace?.id ?? ''}`
   const showEarlier = showEarlierKey === searchKey
 
-  const schedules = useMemo(
-    () => (candidateKey && loadedSchedules.key === candidateKey ? loadedSchedules.map : new Map<string, RouteSchedule>()),
-    [candidateKey, loadedSchedules],
+  const directSchedules = useMemo(
+    () =>
+      candidateKey && loadedDirect.key === candidateKey
+        ? loadedDirect.map
+        : new Map<string, RouteSchedule>(),
+    [candidateKey, loadedDirect],
   )
-  const loadingSchedules = Boolean(candidateKey && loadedSchedules.key !== candidateKey)
+  const loadingDirect = Boolean(candidateKey && loadedDirect.key !== candidateKey)
 
   useEffect(() => {
     if (!candidateKey) return
@@ -124,12 +140,12 @@ export function JourneyPlannerView({
     loadRouteSchedules(candidateRoutes.map((r) => r.id))
       .then((loaded) => {
         if (!cancelled) {
-          setLoadedSchedules({ key: candidateKey, map: loaded })
+          setLoadedDirect({ key: candidateKey, map: loaded })
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setLoadedSchedules({ key: candidateKey, map: new Map() })
+          setLoadedDirect({ key: candidateKey, map: new Map() })
         }
       })
 
@@ -138,18 +154,18 @@ export function JourneyPlannerView({
     }
   }, [candidateKey, candidateRoutes])
 
-  const allMatches: JourneyMatch[] = useMemo(() => {
+  const allDirectMatches: JourneyMatch[] = useMemo(() => {
     if (!fromPlace || !toPlace || candidateRoutes.length === 0) return []
     return matchJourneysFromSchedules({
       routes: candidateRoutes,
-      schedules,
+      schedules: directSchedules,
       stopMap,
       from: fromPlace,
       to: toPlace,
       day: selectedDay,
       hideSchoolOnly,
     })
-  }, [fromPlace, toPlace, candidateRoutes, schedules, stopMap, selectedDay, hideSchoolOnly])
+  }, [fromPlace, toPlace, candidateRoutes, directSchedules, stopMap, selectedDay, hideSchoolOnly])
 
   const cutoffMins = useMemo(() => {
     if (effectiveTimeMode === 'all') return -1
@@ -157,47 +173,163 @@ export function JourneyPlannerView({
     return parseTimeToMinutes(afterTime)
   }, [effectiveTimeMode, isToday, nowMins, afterTime])
 
-  const { visibleMatches, earlierCount, nextBusKey } = useMemo(() => {
+  const { visibleDirectMatches, earlierDirectCount, nextDirectKey } = useMemo(() => {
     if (cutoffMins < 0) {
       const firstUpcoming = isToday
-        ? allMatches.find((m) => parseTimeToMinutes(m.boardTime) >= nowMins - 1)
+        ? allDirectMatches.find((m) => parseTimeToMinutes(m.boardTime) >= nowMins - 1)
         : undefined
       return {
-        visibleMatches: allMatches,
-        earlierCount: 0,
-        nextBusKey: firstUpcoming?.key ?? null,
+        visibleDirectMatches: allDirectMatches,
+        earlierDirectCount: 0,
+        nextDirectKey: firstUpcoming?.key ?? null,
       }
     }
 
-    const upcoming = allMatches.filter((m) => parseTimeToMinutes(m.boardTime) >= cutoffMins)
-    const earlier = allMatches.length - upcoming.length
-    const list = showEarlier ? allMatches : upcoming
+    const upcoming = allDirectMatches.filter((m) => parseTimeToMinutes(m.boardTime) >= cutoffMins)
+    const earlier = allDirectMatches.length - upcoming.length
+    const list = showEarlier ? allDirectMatches : upcoming
     return {
-      visibleMatches: list,
-      earlierCount: earlier,
-      nextBusKey: upcoming[0]?.key ?? null,
+      visibleDirectMatches: list,
+      earlierDirectCount: earlier,
+      nextDirectKey: upcoming[0]?.key ?? null,
     }
-  }, [allMatches, cutoffMins, showEarlier, isToday, nowMins])
+  }, [allDirectMatches, cutoffMins, showEarlier, isToday, nowMins])
 
-  // Check if buses exist on another day when selected day has none
-  let alternativeDaySuggestion: { day: DayCode; count: number } | null = null
-  if (fromPlace && toPlace && allMatches.length === 0 && candidateRoutes.length > 0) {
+  // Determine whether we should search 1-change connecting bus journeys
+  const userRequestedConnections = showConnectionsForKey === pairKey
+  const autoNeedConnections =
+    Boolean(fromPlace && toPlace) && !loadingDirect && allDirectMatches.length === 0
+  const shouldComputeConnections =
+    Boolean(fromPlace && toPlace) && (autoNeedConnections || userRequestedConnections)
+
+  const transferPlan = useMemo(() => {
+    if (!fromPlace || !toPlace || !shouldComputeConnections) return null
+    return findTransferRouteCandidates(routes, stopMap, fromPlace, toPlace)
+  }, [routes, stopMap, fromPlace, toPlace, shouldComputeConnections])
+
+  const transferKey = transferPlan ? transferPlan.routeIdsToLoad.join('|') : ''
+  const transferSchedules = useMemo(
+    () =>
+      transferKey && loadedTransfers.key === transferKey
+        ? loadedTransfers.map
+        : new Map<string, RouteSchedule>(),
+    [transferKey, loadedTransfers],
+  )
+  const loadingTransfers = Boolean(
+    shouldComputeConnections && transferKey && loadedTransfers.key !== transferKey,
+  )
+
+  useEffect(() => {
+    if (!shouldComputeConnections || !transferPlan || !transferKey) return
+    let cancelled = false
+
+    loadRouteSchedules(transferPlan.routeIdsToLoad)
+      .then((loaded) => {
+        if (!cancelled) {
+          setLoadedTransfers({ key: transferKey, map: loaded })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoadedTransfers({ key: transferKey, map: new Map() })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [shouldComputeConnections, transferPlan, transferKey])
+
+  const allConnectingMatches: ConnectingJourneyMatch[] = useMemo(() => {
+    if (!fromPlace || !toPlace || !transferPlan || transferSchedules.size === 0) return []
+    return matchConnectingJourneys({
+      plan: transferPlan,
+      schedules: transferSchedules,
+      stopMap,
+      from: fromPlace,
+      to: toPlace,
+      day: selectedDay,
+      hideSchoolOnly,
+      directMatches: allDirectMatches,
+    })
+  }, [
+    fromPlace,
+    toPlace,
+    transferPlan,
+    transferSchedules,
+    stopMap,
+    selectedDay,
+    hideSchoolOnly,
+    allDirectMatches,
+  ])
+
+  const { visibleConnectingMatches, earlierConnectingCount, nextConnectingKey } = useMemo(() => {
+    if (cutoffMins < 0) {
+      const firstUpcoming = isToday
+        ? allConnectingMatches.find((m) => parseTimeToMinutes(m.leg1.boardTime) >= nowMins - 1)
+        : undefined
+      return {
+        visibleConnectingMatches: allConnectingMatches,
+        earlierConnectingCount: 0,
+        nextConnectingKey: firstUpcoming?.key ?? null,
+      }
+    }
+
+    const upcoming = allConnectingMatches.filter(
+      (m) => parseTimeToMinutes(m.leg1.boardTime) >= cutoffMins,
+    )
+    const earlier = allConnectingMatches.length - upcoming.length
+    const list = showEarlier ? allConnectingMatches : upcoming
+    return {
+      visibleConnectingMatches: list,
+      earlierConnectingCount: earlier,
+      nextConnectingKey: upcoming[0]?.key ?? null,
+    }
+  }, [allConnectingMatches, cutoffMins, showEarlier, isToday, nowMins])
+
+  // Check if buses (direct or 1-change) exist on another day when selected day has none
+  let alternativeDaySuggestion: { day: DayCode; count: number; isConnecting: boolean } | null = null
+  if (
+    fromPlace &&
+    toPlace &&
+    !loadingDirect &&
+    !loadingTransfers &&
+    allDirectMatches.length === 0 &&
+    allConnectingMatches.length === 0
+  ) {
     const candidates: DayCode[] = (['Mon', 'Sat', 'Sun'] as DayCode[]).filter(
       (d) => d !== selectedDay,
     )
     for (const altDay of candidates) {
-      const alt = matchJourneysFromSchedules({
-        routes: candidateRoutes,
-        schedules,
-        stopMap,
-        from: fromPlace,
-        to: toPlace,
-        day: altDay,
-        hideSchoolOnly: false,
-      })
-      if (alt.length > 0) {
-        alternativeDaySuggestion = { day: altDay, count: alt.length }
-        break
+      if (candidateRoutes.length > 0) {
+        const altDirect = matchJourneysFromSchedules({
+          routes: candidateRoutes,
+          schedules: directSchedules,
+          stopMap,
+          from: fromPlace,
+          to: toPlace,
+          day: altDay,
+          hideSchoolOnly: false,
+        })
+        if (altDirect.length > 0) {
+          alternativeDaySuggestion = { day: altDay, count: altDirect.length, isConnecting: false }
+          break
+        }
+      }
+      if (transferPlan && transferSchedules.size > 0) {
+        const altConn = matchConnectingJourneys({
+          plan: transferPlan,
+          schedules: transferSchedules,
+          stopMap,
+          from: fromPlace,
+          to: toPlace,
+          day: altDay,
+          hideSchoolOnly: false,
+        })
+        if (altConn.length > 0) {
+          alternativeDaySuggestion = { day: altDay, count: altConn.length, isConnecting: true }
+          break
+        }
       }
     }
   }
@@ -216,8 +348,16 @@ export function JourneyPlannerView({
       ...pair,
       from: findOption(pair.fromQuery),
       to: findOption(pair.toQuery),
-    })).filter((p): p is { fromQuery: string; toQuery: string; label: string; from: PlaceOption; to: PlaceOption } =>
-      Boolean(p.from && p.to),
+    })).filter(
+      (
+        p,
+      ): p is {
+        fromQuery: string
+        toQuery: string
+        label: string
+        from: PlaceOption
+        to: PlaceOption
+      } => Boolean(p.from && p.to),
     )
   }, [localities, stopOptions])
 
@@ -277,11 +417,15 @@ export function JourneyPlannerView({
   }
 
   const hasSearch = Boolean(fromPlace && toPlace)
+  const totalEarlierCount = earlierDirectCount + earlierConnectingCount
+  const totalAllCount = allDirectMatches.length + allConnectingMatches.length
+  const totalVisibleCount = visibleDirectMatches.length + visibleConnectingMatches.length
+  const isLoadingAny = loadingDirect || loadingTransfers
 
   return (
     <div className="space-y-6">
       {/* Hero + Search Card */}
-      <section aria-labelledby="planner-heading" className="rounded-3xl border border-[#D4DFD9] bg-white p-5 shadow-sm sm:p-7">
+      <section aria-labelledby="planner-heading" className="rounded-3xl border border-[#D4DFDF] bg-white p-5 shadow-sm sm:p-7">
         <div className="mb-5">
           <h1
             id="planner-heading"
@@ -290,7 +434,7 @@ export function JourneyPlannerView({
             Where would you like to go?
           </h1>
           <p className="mt-1.5 text-sm font-medium text-[#455952] sm:text-base">
-            Search by town, village, or stop name across Dumfries &amp; Galloway — clear times, no confusing PDFs.
+            Search by town, village, or stop name across Dumfries &amp; Galloway — including direct buses and 1-change connections.
           </p>
         </div>
 
@@ -506,43 +650,136 @@ export function JourneyPlannerView({
                 {fromPlace!.label} to {toPlace!.label}
               </h2>
               <p className="text-sm font-medium text-[#455952]">
-                {loadingSchedules
-                  ? 'Checking live timetables…'
-                  : `${visibleMatches.length} direct bus${visibleMatches.length === 1 ? '' : 'es'} shown for ${DAY_FULL_NAMES[selectedDay]}`}
+                {loadingDirect
+                  ? 'Checking direct timetables…'
+                  : loadingTransfers && visibleDirectMatches.length === 0
+                    ? 'No direct bus — searching connecting routes with 1 change…'
+                    : visibleDirectMatches.length > 0 && visibleConnectingMatches.length > 0
+                      ? `${visibleDirectMatches.length} direct + ${visibleConnectingMatches.length} with 1 change for ${DAY_FULL_NAMES[selectedDay]}`
+                      : visibleDirectMatches.length > 0
+                        ? `${visibleDirectMatches.length} direct bus${visibleDirectMatches.length === 1 ? '' : 'es'} shown for ${DAY_FULL_NAMES[selectedDay]}`
+                        : visibleConnectingMatches.length > 0
+                          ? `No direct bus — ${visibleConnectingMatches.length} connecting journey${visibleConnectingMatches.length === 1 ? '' : 's'} (1 change) for ${DAY_FULL_NAMES[selectedDay]}`
+                          : `0 journeys shown for ${DAY_FULL_NAMES[selectedDay]}`}
               </p>
             </div>
 
-            {earlierCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowEarlierKey(showEarlier ? null : searchKey)}
-                className="min-h-10 rounded-xl bg-[#00838f] px-4 py-1.5 text-sm font-bold text-white transition-colors hover:bg-[#006B75]"
-              >
-                {showEarlier
-                  ? 'Hide earlier buses'
-                  : `Show ${earlierCount} earlier bus${earlierCount === 1 ? '' : 'es'}`}
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {!loadingDirect && allDirectMatches.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowConnectionsForKey(userRequestedConnections ? null : pairKey)
+                  }
+                  aria-pressed={userRequestedConnections}
+                  className={`inline-flex min-h-10 items-center gap-1.5 rounded-xl border-2 px-3.5 py-1.5 text-sm font-bold transition-colors ${
+                    userRequestedConnections
+                      ? 'border-[#95398d] bg-[#95398d] text-white'
+                      : 'border-[#00838f] bg-white text-[#006B75] hover:bg-[#E4F4F6]'
+                  }`}
+                >
+                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                  <span>
+                    {userRequestedConnections
+                      ? 'Hide 1-change options'
+                      : 'Also check 1-change routes'}
+                  </span>
+                </button>
+              )}
+
+              {totalEarlierCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowEarlierKey(showEarlier ? null : searchKey)}
+                  className="min-h-10 rounded-xl bg-[#00838f] px-4 py-1.5 text-sm font-bold text-white transition-colors hover:bg-[#006B75]"
+                >
+                  {showEarlier
+                    ? 'Hide earlier buses'
+                    : `Show ${totalEarlierCount} earlier journey${totalEarlierCount === 1 ? '' : 's'}`}
+                </button>
+              )}
+            </div>
           </div>
 
-          {loadingSchedules ? (
+          {isLoadingAny && totalVisibleCount === 0 ? (
             <div className="flex items-center justify-center gap-3 rounded-2xl border border-[#DCE4E4] bg-white p-10 text-sm font-semibold text-[#455952]">
               <Loader2 className="h-5 w-5 animate-spin text-[#00838f]" aria-hidden="true" />
-              <span>Finding buses between {fromPlace!.label} and {toPlace!.label}…</span>
+              <span>
+                {loadingTransfers && !loadingDirect
+                  ? `Finding 1-change bus connections from ${fromPlace!.label} to ${toPlace!.label}…`
+                  : `Finding buses between ${fromPlace!.label} and ${toPlace!.label}…`}
+              </span>
             </div>
-          ) : visibleMatches.length > 0 ? (
-            <div className="space-y-3.5">
-              {visibleMatches.map((match) => (
-                <JourneyCard
-                  key={match.key}
-                  match={match}
-                  stopMap={stopMap}
-                  isNextBus={match.key === nextBusKey}
-                  isToday={isToday}
-                  nowMins={nowMins}
-                  onInspectRoute={onInspectRoute}
-                />
-              ))}
+          ) : totalVisibleCount > 0 ? (
+            <div className="space-y-5">
+              {/* Direct Bus Results */}
+              {visibleDirectMatches.length > 0 && (
+                <div className="space-y-3.5">
+                  {visibleDirectMatches.map((match) => (
+                    <JourneyCard
+                      key={match.key}
+                      match={match}
+                      stopMap={stopMap}
+                      isNextBus={match.key === nextDirectKey}
+                      isToday={isToday}
+                      nowMins={nowMins}
+                      onInspectRoute={onInspectRoute}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Connecting (1-Change) Results */}
+              {loadingTransfers && visibleDirectMatches.length > 0 && (
+                <div className="flex items-center justify-center gap-2.5 rounded-2xl border border-[#DCE4E4] bg-white p-5 text-sm font-semibold text-[#455952]">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#00838f]" aria-hidden="true" />
+                  <span>Checking connecting routes with 1 bus change…</span>
+                </div>
+              )}
+
+              {visibleConnectingMatches.length > 0 && (
+                <div className="space-y-3.5">
+                  {visibleDirectMatches.length === 0 ? (
+                    <div className="flex items-start gap-3 rounded-2xl border border-[#E7D4E6] bg-[#FBF6FB] px-4 py-3 text-sm font-semibold text-[#5E2259]">
+                      <Repeat2 className="mt-0.5 h-5 w-5 shrink-0 text-[#95398d]" aria-hidden="true" />
+                      <span>
+                        There is no direct bus between <strong>{fromPlace!.label}</strong> and{' '}
+                        <strong>{toPlace!.label}</strong> on {DAY_FULL_NAMES[selectedDay]}, so here are the best journeys with <strong>1 bus change</strong> (including at least 5 minutes transfer time).
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 pt-2">
+                      <Repeat2 className="h-4 w-4 text-[#95398d]" aria-hidden="true" />
+                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#5E2259]">
+                        Alternative journeys with 1 bus change ({visibleConnectingMatches.length})
+                      </h3>
+                    </div>
+                  )}
+
+                  {visibleConnectingMatches.map((match) => (
+                    <ConnectingJourneyCard
+                      key={match.key}
+                      match={match}
+                      stopMap={stopMap}
+                      isNextBus={
+                        visibleDirectMatches.length === 0 && match.key === nextConnectingKey
+                      }
+                      isToday={isToday}
+                      nowMins={nowMins}
+                      onInspectRoute={onInspectRoute}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {userRequestedConnections &&
+                !loadingTransfers &&
+                visibleDirectMatches.length > 0 &&
+                visibleConnectingMatches.length === 0 && (
+                  <p className="rounded-2xl border border-[#DCE4E4] bg-white px-4 py-3 text-sm font-medium text-[#455952]">
+                    No faster 1-change connections found — the direct buses above are already your quickest options.
+                  </p>
+                )}
             </div>
           ) : (
             <div className="rounded-2xl border border-[#DCE4E4] bg-white p-6 text-center sm:p-8">
@@ -550,13 +787,14 @@ export function JourneyPlannerView({
                 <Bus className="h-6 w-6" aria-hidden="true" />
               </div>
 
-              {allMatches.length > 0 && earlierCount > 0 ? (
+              {totalAllCount > 0 && totalEarlierCount > 0 ? (
                 <>
                   <h3 className="text-base font-extrabold text-[#111C18]">
-                    No more buses left today after {effectiveTimeMode === 'now' ? formatMinutesToHHMM(nowMins) : afterTime}
+                    No more journeys left today after{' '}
+                    {effectiveTimeMode === 'now' ? formatMinutesToHHMM(nowMins) : afterTime}
                   </h3>
                   <p className="mx-auto mt-1.5 max-w-md text-sm text-[#455952]">
-                    There {earlierCount === 1 ? 'was 1 earlier bus' : `were ${earlierCount} earlier buses`} on{' '}
+                    There {totalEarlierCount === 1 ? 'was 1 earlier journey' : `were ${totalEarlierCount} earlier journeys`} on{' '}
                     {DAY_FULL_NAMES[selectedDay]}. You can view the full day’s timetable or check tomorrow.
                   </p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2.5">
@@ -565,7 +803,7 @@ export function JourneyPlannerView({
                       onClick={() => setShowEarlierKey(searchKey)}
                       className="min-h-11 rounded-xl bg-[#00838f] px-4 py-2 text-sm font-bold text-white hover:bg-[#006B75]"
                     >
-                      Show all {earlierCount} earlier buses
+                      Show all {totalEarlierCount} earlier journeys
                     </button>
                     <button
                       type="button"
@@ -582,12 +820,12 @@ export function JourneyPlannerView({
               ) : (
                 <>
                   <h3 className="text-base font-extrabold text-[#111C18]">
-                    No direct buses found on {DAY_FULL_NAMES[selectedDay]}
+                    No direct or 1-change journeys found on {DAY_FULL_NAMES[selectedDay]}
                   </h3>
                   <p className="mx-auto mt-1.5 max-w-md text-sm text-[#455952]">
                     {alternativeDaySuggestion
-                      ? `This route does not run on ${DAY_FULL_NAMES[selectedDay]}, but there are ${alternativeDaySuggestion.count} buses on ${DAY_FULL_NAMES[alternativeDaySuggestion.day]}.`
-                      : 'No single bus runs directly between these two places. Most cross-region journeys in Dumfries & Galloway connect at Dumfries Whitesands.'}
+                      ? `No buses connect these places on ${DAY_FULL_NAMES[selectedDay]}, but there are ${alternativeDaySuggestion.count} ${alternativeDaySuggestion.isConnecting ? '1-change connecting ' : ''}journeys on ${DAY_FULL_NAMES[alternativeDaySuggestion.day]}.`
+                      : 'We checked both direct buses and 1-change connections (up to 90 minutes wait). Try checking a weekday or splitting your trip via Dumfries.'}
                   </p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2.5">
                     {alternativeDaySuggestion && (
@@ -599,7 +837,7 @@ export function JourneyPlannerView({
                         }}
                         className="min-h-11 rounded-xl bg-[#00838f] px-4 py-2 text-sm font-bold text-white hover:bg-[#006B75]"
                       >
-                        Check {DAY_FULL_NAMES[alternativeDaySuggestion.day]} ({alternativeDaySuggestion.count} buses)
+                        Check {DAY_FULL_NAMES[alternativeDaySuggestion.day]} ({alternativeDaySuggestion.count} journeys)
                       </button>
                     )}
                     {hideSchoolOnly && (
