@@ -1,7 +1,9 @@
 import {
   DAY_CODES,
   type BusStop,
+  type ConnectingJourneyMatch,
   type DayCode,
+  type JourneyLeg,
   type JourneyMatch,
   type PlaceOption,
   type RouteSchedule,
@@ -11,8 +13,12 @@ import {
 const HUB_KEYWORDS = [
   'bus station',
   'whitesands',
+  'loreburne',
   'high street',
+  'king street',
+  'market hill',
   'town hall',
+  'stance',
   'stand',
   'square',
   'cross',
@@ -520,3 +526,437 @@ export function matchJourneysFromSchedules(params: {
 
   return matches
 }
+
+const MAX_TRANSFER_WALK_KM = 0.35
+const MIN_TRANSFER_BUFFER_MINS = 5
+const MAX_TRANSFER_WAIT_MINS = 90
+const WALK_SPEED_METRES_PER_MIN = 75
+
+export interface TransferRoutePlan {
+  fromRoutes: RouteSummary[]
+  toRoutes: RouteSummary[]
+  routeIdsToLoad: string[]
+  /** Maps leg1 alight stopId -> nearby/same leg2 board stops (walkMetres <= 350) */
+  interchangeMap: Map<string, Array<{ stopId: string; walkMetres: number }>>
+}
+
+function makeFallbackStop(stopId: string, stopMap: Map<string, BusStop>): BusStop {
+  return (
+    stopMap.get(stopId) ?? {
+      atcoCode: stopId,
+      name: stopId,
+      locality: '',
+      indicator: '',
+      lat: null,
+      lng: null,
+    }
+  )
+}
+
+/**
+ * Find candidate (Leg 1, Leg 2) routes and valid same-stop or short-walk (<=350m)
+ * interchange pairs between origin and destination places.
+ */
+export function findTransferRouteCandidates(
+  routes: RouteSummary[],
+  stopMap: Map<string, BusStop>,
+  from: PlaceOption,
+  to: PlaceOption,
+): TransferRoutePlan {
+  const fromSet = new Set(from.stopIds)
+  const toSet = new Set(to.stopIds)
+
+  const rawFromRoutes = routes
+    .filter((r) => r.stopIds.some((s) => fromSet.has(s)))
+    .sort((a, b) => b.tripCount - a.tripCount)
+    .slice(0, 18)
+
+  const rawToRoutes = routes
+    .filter((r) => r.stopIds.some((s) => toSet.has(s)))
+    .sort((a, b) => b.tripCount - a.tripCount)
+    .slice(0, 18)
+
+  if (rawFromRoutes.length === 0 || rawToRoutes.length === 0) {
+    return { fromRoutes: [], toRoutes: [], routeIdsToLoad: [], interchangeMap: new Map() }
+  }
+
+  // Collect all stops served by Leg 2 routes (excluding origin & destination stops)
+  const toRouteStopIds = new Set<string>()
+  for (const r of rawToRoutes) {
+    for (const sId of r.stopIds) {
+      if (!fromSet.has(sId) && !toSet.has(sId)) {
+        toRouteStopIds.add(sId)
+      }
+    }
+  }
+
+  // Spatial grid bucket (~550m cells at 55°N) for fast <=350m walking transfer lookup
+  const grid = new Map<string, BusStop[]>()
+  const cellKey = (lat: number, lng: number) =>
+    `${Math.floor(lat / 0.005)}:${Math.floor(lng / 0.009)}`
+
+  for (const sId of toRouteStopIds) {
+    const stop = stopMap.get(sId)
+    if (stop && stop.lat !== null && stop.lng !== null) {
+      const key = cellKey(stop.lat, stop.lng)
+      const bucket = grid.get(key) ?? []
+      bucket.push(stop)
+      grid.set(key, bucket)
+    }
+  }
+
+  const fromRouteStopIds = new Set<string>()
+  for (const r of rawFromRoutes) {
+    for (const sId of r.stopIds) {
+      if (!fromSet.has(sId) && !toSet.has(sId)) {
+        fromRouteStopIds.add(sId)
+      }
+    }
+  }
+
+  const interchangeMap = new Map<string, Array<{ stopId: string; walkMetres: number }>>()
+
+  for (const sId of fromRouteStopIds) {
+    const links: Array<{ stopId: string; walkMetres: number }> = []
+    const seen = new Set<string>()
+
+    if (toRouteStopIds.has(sId)) {
+      links.push({ stopId: sId, walkMetres: 0 })
+      seen.add(sId)
+    }
+
+    const stop = stopMap.get(sId)
+    if (stop && stop.lat !== null && stop.lng !== null) {
+      const baseLatCell = Math.floor(stop.lat / 0.005)
+      const baseLngCell = Math.floor(stop.lng / 0.009)
+      for (let dLat = -1; dLat <= 1; dLat++) {
+        for (let dLng = -1; dLng <= 1; dLng++) {
+          const bucket = grid.get(`${baseLatCell + dLat}:${baseLngCell + dLng}`)
+          if (!bucket) continue
+          for (const cand of bucket) {
+            if (seen.has(cand.atcoCode) || cand.lat === null || cand.lng === null) continue
+            const km = haversineKm(stop.lat, stop.lng, cand.lat, cand.lng)
+            if (km <= MAX_TRANSFER_WALK_KM) {
+              links.push({
+                stopId: cand.atcoCode,
+                walkMetres: Math.max(10, Math.round((km * 1000) / 10) * 10),
+              })
+              seen.add(cand.atcoCode)
+            }
+          }
+        }
+      }
+    }
+
+    if (links.length > 0) {
+      links.sort((a, b) => a.walkMetres - b.walkMetres)
+      interchangeMap.set(sId, links.slice(0, 8))
+    }
+  }
+
+  // Keep only routes that actually participate in at least one valid interchange
+  const activeToStopTargets = new Set<string>()
+  for (const list of interchangeMap.values()) {
+    for (const item of list) activeToStopTargets.add(item.stopId)
+  }
+
+  const fromRoutes = rawFromRoutes.filter((r) => r.stopIds.some((s) => interchangeMap.has(s)))
+  const toRoutes = rawToRoutes.filter((r) => r.stopIds.some((s) => activeToStopTargets.has(s)))
+
+  const routeIdSet = new Set<string>()
+  for (const r of fromRoutes) routeIdSet.add(r.id)
+  for (const r of toRoutes) routeIdSet.add(r.id)
+
+  return {
+    fromRoutes,
+    toRoutes,
+    routeIdsToLoad: Array.from(routeIdSet),
+    interchangeMap,
+  }
+}
+
+interface Leg2DepartureEntry {
+  boardMins: number
+  alightMins: number
+  leg: JourneyLeg
+}
+
+export function matchConnectingJourneys(params: {
+  plan: TransferRoutePlan
+  schedules: Map<string, RouteSchedule>
+  stopMap: Map<string, BusStop>
+  from: PlaceOption
+  to: PlaceOption
+  day: DayCode
+  hideSchoolOnly: boolean
+  directMatches?: JourneyMatch[]
+}): ConnectingJourneyMatch[] {
+  const { plan, schedules, stopMap, from, to, day, hideSchoolOnly, directMatches = [] } = params
+  if (plan.fromRoutes.length === 0 || plan.toRoutes.length === 0) return []
+
+  const fromSet = new Set(from.stopIds)
+  const toSet = new Set(to.stopIds)
+
+  const targetTransferStops = new Set<string>()
+  for (const links of plan.interchangeMap.values()) {
+    for (const link of links) targetTransferStops.add(link.stopId)
+  }
+
+  // 1. Pre-index all valid Leg 2 departures keyed by interchange board stopId
+  const leg2ByStop = new Map<string, Leg2DepartureEntry[]>()
+
+  for (const route of plan.toRoutes) {
+    const sched = schedules.get(route.id)
+    if (!sched) continue
+
+    const directions: Array<{
+      dir: 'outbound' | 'inbound'
+      label: string
+      trips: RouteSchedule['outbound']
+    }> = [
+      { dir: 'outbound', label: sched.outboundLabel, trips: sched.outbound },
+      { dir: 'inbound', label: sched.inboundLabel, trips: sched.inbound },
+    ]
+
+    for (const { dir, label, trips } of directions) {
+      for (const trip of trips) {
+        if (!trip.days.includes(day)) continue
+        if (hideSchoolOnly && trip.schoolOnly) continue
+
+        const toIndices: number[] = []
+        for (let i = 0; i < trip.stops.length; i++) {
+          if (toSet.has(trip.stops[i][0])) toIndices.push(i)
+        }
+        if (toIndices.length === 0) continue
+
+        const latestTo = toIndices[toIndices.length - 1]
+        for (let i = 0; i < latestTo; i++) {
+          const [boardStopId, boardTime] = trip.stops[i]
+          if (!targetTransferStops.has(boardStopId)) continue
+
+          const validToAfter = toIndices.filter((idx) => idx > i)
+          if (validToAfter.length === 0) continue
+
+          const alightIndex =
+            to.kind === 'stop'
+              ? validToAfter[0]
+              : pickBestIndex(validToAfter, trip.stops, stopMap, true)
+
+          const [alightStopId, alightTime] = trip.stops[alightIndex]
+          const boardMins = parseTimeToMinutes(boardTime)
+          let alightMins = parseTimeToMinutes(alightTime)
+          if (alightMins < boardMins) alightMins += 1440
+
+          const leg: JourneyLeg = {
+            route,
+            direction: dir,
+            directionLabel: label,
+            trip,
+            boardStop: makeFallbackStop(boardStopId, stopMap),
+            boardTime,
+            boardIndex: i,
+            alightStop: makeFallbackStop(alightStopId, stopMap),
+            alightTime,
+            alightIndex,
+            durationMins: alightMins - boardMins,
+            stopsBetween: Math.max(0, alightIndex - i - 1),
+            fromIndices: [i],
+            toIndices: validToAfter,
+          }
+
+          const arr = leg2ByStop.get(boardStopId) ?? []
+          arr.push({ boardMins, alightMins, leg })
+          leg2ByStop.set(boardStopId, arr)
+        }
+      }
+    }
+  }
+
+  for (const list of leg2ByStop.values()) {
+    list.sort((a, b) => a.boardMins - b.boardMins || a.alightMins - b.alightMins)
+  }
+
+  // 2. Scan Leg 1 trips and find best connecting Leg 2 for each Leg 1 departure
+  const bestByLeg1Trip = new Map<string, ConnectingJourneyMatch>()
+
+  for (const route of plan.fromRoutes) {
+    const sched = schedules.get(route.id)
+    if (!sched) continue
+
+    const directions: Array<{
+      dir: 'outbound' | 'inbound'
+      label: string
+      trips: RouteSchedule['outbound']
+    }> = [
+      { dir: 'outbound', label: sched.outboundLabel, trips: sched.outbound },
+      { dir: 'inbound', label: sched.inboundLabel, trips: sched.inbound },
+    ]
+
+    for (const { dir, label, trips } of directions) {
+      for (const trip of trips) {
+        if (!trip.days.includes(day)) continue
+        if (hideSchoolOnly && trip.schoolOnly) continue
+
+        const fromIndices: number[] = []
+        for (let i = 0; i < trip.stops.length; i++) {
+          if (fromSet.has(trip.stops[i][0])) fromIndices.push(i)
+        }
+        if (fromIndices.length === 0) continue
+
+        const boardIndex =
+          from.kind === 'stop'
+            ? fromIndices[0]
+            : pickBestIndex(fromIndices, trip.stops, stopMap, true)
+
+        const [boardStopId, boardTime] = trip.stops[boardIndex]
+        const leg1BoardMins = parseTimeToMinutes(boardTime)
+        const leg1GroupKey = `${route.id}:${dir}:${trip.id}:${boardIndex}`
+
+        for (let alightIdx = boardIndex + 1; alightIdx < trip.stops.length; alightIdx++) {
+          const [alightStopId, alightTime] = trip.stops[alightIdx]
+          const transferLinks = plan.interchangeMap.get(alightStopId)
+          if (!transferLinks) continue
+
+          let leg1AlightMins = parseTimeToMinutes(alightTime)
+          if (leg1AlightMins < leg1BoardMins) leg1AlightMins += 1440
+
+          for (const link of transferLinks) {
+            const candidates = leg2ByStop.get(link.stopId)
+            if (!candidates || candidates.length === 0) continue
+
+            const walkMins =
+              link.walkMetres === 0
+                ? 0
+                : Math.max(1, Math.ceil(link.walkMetres / WALK_SPEED_METRES_PER_MIN))
+            const minDep = leg1AlightMins + walkMins + MIN_TRANSFER_BUFFER_MINS
+            const maxDep = leg1AlightMins + MAX_TRANSFER_WAIT_MINS
+
+            // Binary search for first Leg 2 departure >= minDep
+            let lo = 0
+            let hi = candidates.length
+            while (lo < hi) {
+              const mid = (lo + hi) >> 1
+              if (candidates[mid].boardMins < minDep) lo = mid + 1
+              else hi = mid
+            }
+
+            for (let k = lo; k < candidates.length; k++) {
+              const cand = candidates[k]
+              if (cand.boardMins > maxDep) break
+              if (cand.leg.route.id === route.id) continue
+
+              const totalDurationMins = cand.alightMins - leg1BoardMins
+              if (totalDurationMins <= 0 || totalDurationMins > 300) continue
+
+              const existing = bestByLeg1Trip.get(leg1GroupKey)
+              const existingArr = existing
+                ? parseTimeToMinutes(existing.leg1.boardTime) + existing.totalDurationMins
+                : Infinity
+
+              const candAlightStop = makeFallbackStop(alightStopId, stopMap)
+              const candHubScore = isHubStop(candAlightStop) ? 1 : 0
+              const existingHubScore = existing && isHubStop(existing.leg1.alightStop) ? 1 : 0
+
+              const isBetter =
+                !existing ||
+                cand.alightMins < existingArr ||
+                (cand.alightMins === existingArr && candHubScore > existingHubScore) ||
+                (cand.alightMins === existingArr &&
+                  candHubScore === existingHubScore &&
+                  link.walkMetres < existing.walkMetres) ||
+                (cand.alightMins === existingArr &&
+                  candHubScore === existingHubScore &&
+                  link.walkMetres === existing.walkMetres &&
+                  cand.boardMins - leg1AlightMins < existing.waitMins)
+
+              if (isBetter) {
+                const alightStop = candAlightStop
+                const leg1: JourneyLeg = {
+                  route,
+                  direction: dir,
+                  directionLabel: label,
+                  trip,
+                  boardStop: makeFallbackStop(boardStopId, stopMap),
+                  boardTime,
+                  boardIndex,
+                  alightStop,
+                  alightTime,
+                  alightIndex: alightIdx,
+                  durationMins: leg1AlightMins - leg1BoardMins,
+                  stopsBetween: Math.max(0, alightIdx - boardIndex - 1),
+                  fromIndices,
+                  toIndices: [alightIdx],
+                }
+
+                const changeAtLabel =
+                  alightStop.locality || formatStopDisplayName(alightStop)
+
+                bestByLeg1Trip.set(leg1GroupKey, {
+                  key: `${leg1GroupKey}->${cand.leg.route.id}:${cand.leg.trip.id}:${cand.leg.boardIndex}`,
+                  leg1,
+                  leg2: cand.leg,
+                  totalDurationMins,
+                  waitMins: cand.boardMins - leg1AlightMins,
+                  walkMetres: link.walkMetres,
+                  walkMins,
+                  changeAtLabel,
+                })
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Sort and prune dominated connecting journeys
+  const sorted = Array.from(bestByLeg1Trip.values()).sort((a, b) => {
+    const depDiff = parseTimeToMinutes(a.leg1.boardTime) - parseTimeToMinutes(b.leg1.boardTime)
+    if (depDiff !== 0) return depDiff
+    return a.totalDurationMins - b.totalDurationMins
+  })
+
+  // Remove options strictly dominated by a later-departing, earlier-or-equal-arriving journey
+  const pruned: ConnectingJourneyMatch[] = []
+  for (let i = 0; i < sorted.length; i++) {
+    const curr = sorted[i]
+    const currDep = parseTimeToMinutes(curr.leg1.boardTime)
+    const currArr = currDep + curr.totalDurationMins
+
+    let dominated = false
+
+    // Check against other connecting journeys
+    for (let j = 0; j < sorted.length; j++) {
+      if (i === j) continue
+      const other = sorted[j]
+      const otherDep = parseTimeToMinutes(other.leg1.boardTime)
+      const otherArr = otherDep + other.totalDurationMins
+
+      if (otherDep >= currDep && otherArr <= currArr) {
+        if (otherDep > currDep || otherArr < currArr || other.walkMetres < curr.walkMetres) {
+          dominated = true
+          break
+        }
+      }
+    }
+
+    // Check against direct buses (never suggest a slower 1-change right beside a faster direct bus)
+    if (!dominated && directMatches.length > 0) {
+      for (const direct of directMatches) {
+        const dDep = parseTimeToMinutes(direct.boardTime)
+        const dArr = dDep + direct.durationMins
+        if (dDep >= currDep - 5 && dDep <= currDep + 15 && dArr <= currArr) {
+          dominated = true
+          break
+        }
+      }
+    }
+
+    if (!dominated) {
+      pruned.push(curr)
+    }
+  }
+
+  return pruned
+}
+
