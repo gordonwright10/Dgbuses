@@ -1,7 +1,14 @@
 import L from 'leaflet'
 import { ArrowRight, Bus, LocateFixed, MapPin, Navigation, Search } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { formatDistance, formatIndicator, haversineKm } from '../lib/transit'
+import {
+  formatDistance,
+  formatIndicator,
+  formatStopDisplayName,
+  haversineKm,
+  isDgriStop,
+  isWhitesandsStop,
+} from '../lib/transit'
 import type { BusStop, PlaceOption, RouteSummary } from '../types/transit'
 
 interface StopsMapViewProps {
@@ -16,16 +23,17 @@ const DG_CENTER: [number, number] = [55.069, -3.613]
 const MAX_RENDERED_MARKERS = 400
 
 function stopToPlaceOption(stop: BusStop): PlaceOption {
+  const displayName = formatStopDisplayName(stop)
   const ind = formatIndicator(stop.indicator)
   return {
     id: `stop:${stop.atcoCode}`,
     kind: 'stop',
-    label: stop.name,
+    label: displayName,
     sublabel: [stop.locality, ind].filter(Boolean).join(' · ') || stop.atcoCode,
     stopIds: [stop.atcoCode],
     lat: stop.lat,
     lng: stop.lng,
-    searchKey: `${stop.name} ${stop.locality} ${stop.atcoCode}`.toLowerCase(),
+    searchKey: `${displayName} ${stop.name} ${stop.street ?? ''} ${stop.locality} ${stop.atcoCode}`.toLowerCase(),
   }
 }
 
@@ -69,9 +77,15 @@ export function StopsMapView({
   const filteredStops = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return mappableStops
-    return mappableStops.filter((s) =>
-      `${s.name} ${s.locality} ${s.indicator} ${s.atcoCode}`.toLowerCase().includes(q),
-    )
+    return mappableStops.filter((s) => {
+      const displayName = formatStopDisplayName(s)
+      const alias =
+        (isDgriStop(s) ? ' dgri royal infirmary hospital' : '') +
+        (isWhitesandsStop(s) ? ' whitesands dumfries stances' : '')
+      return `${displayName} ${s.name} ${s.street ?? ''} ${s.landmark ?? ''} ${s.locality} ${s.indicator} ${s.atcoCode}${alias}`
+        .toLowerCase()
+        .includes(q)
+    })
   }, [mappableStops, searchQuery])
 
   const nearestStops = useMemo(() => {
@@ -119,7 +133,7 @@ export function StopsMapView({
     }
   }, [])
 
-  // Render viewport-bounded stops smoothly (fast even with 1,500+ NaPTAN stops)
+  // Render viewport-bounded stops smoothly (fast even with 2,500+ NaPTAN stops)
   useEffect(() => {
     const map = mapRef.current
     const layer = markersLayerRef.current
@@ -154,11 +168,12 @@ export function StopsMapView({
         radius: isSelected ? 10 : servedCount > 0 ? 7 : 5,
         color: isSelected ? '#FFFFFF' : servedCount > 0 ? '#FFFFFF' : '#455952',
         weight: isSelected ? 3 : 2,
-        fillColor: isSelected ? '#18314F' : servedCount > 0 ? '#0F5C4A' : '#8FA39B',
+        fillColor: isSelected ? '#95398d' : servedCount > 0 ? '#00838f' : '#8FA3A6',
         fillOpacity: 0.95,
       })
 
-      marker.bindTooltip(`${stop.name}${stop.locality ? ` · ${stop.locality}` : ''}`, {
+      const displayName = formatStopDisplayName(stop)
+      marker.bindTooltip(`${displayName}${stop.locality ? ` · ${stop.locality}` : ''}`, {
         direction: 'top',
         offset: [0, -6],
       })
@@ -224,7 +239,7 @@ export function StopsMapView({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-3xl border border-[#D4DFD9] bg-white p-5 shadow-xs">
+      <section className="rounded-3xl border border-[#D4DFDF] bg-white p-5 shadow-xs">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-[#111C18]">
@@ -238,7 +253,7 @@ export function StopsMapView({
             type="button"
             onClick={handleFindNearMe}
             disabled={locating}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#0F5C4A] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#0A4638] disabled:opacity-60"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#00838f] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#006B75] disabled:opacity-60"
           >
             <LocateFixed className="h-4 w-4" aria-hidden="true" />
             <span>{locating ? 'Locating…' : 'Find stops near me'}</span>
@@ -258,8 +273,8 @@ export function StopsMapView({
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Jump to a town or stop (e.g. Whitesands, DGRI, Annan, Stranraer)…"
-            className="min-h-12 w-full rounded-xl border-2 border-[#CED9D3] bg-white pl-11 pr-4 py-2.5 text-base font-medium text-[#111C18] placeholder:text-[#667871] focus:border-[#0F5C4A] focus:outline-none"
+            placeholder="Jump to a town, street, or stop (e.g. Whitesands, DGRI, Annan, Stranraer)…"
+            className="min-h-12 w-full rounded-xl border-2 border-[#CED9D9] bg-white pl-11 pr-4 py-2.5 text-base font-medium text-[#111C18] placeholder:text-[#667871] focus:border-[#00838f] focus:outline-none"
           />
         </div>
 
@@ -270,11 +285,11 @@ export function StopsMapView({
                 key={stop.atcoCode}
                 type="button"
                 onClick={() => focusStop(stop)}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#CBD7D1] bg-[#F6F9F7] px-3 py-1 text-xs font-bold text-[#18314F] hover:border-[#0F5C4A] hover:bg-[#E7F3EE]"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#00838f]/40 bg-[#F2F9FA] px-3 py-1 text-xs font-bold text-[#005A63] hover:bg-[#00838f] hover:text-white"
               >
-                <MapPin className="h-3.5 w-3.5 text-[#0F5C4A]" aria-hidden="true" />
+                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>
-                  {stop.name}
+                  {formatStopDisplayName(stop)}
                   {stop.locality ? ` (${stop.locality})` : ''}
                 </span>
               </button>
@@ -291,21 +306,21 @@ export function StopsMapView({
 
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         {/* Map Canvas */}
-        <div className="overflow-hidden rounded-3xl border border-[#D4DFD9] bg-white shadow-xs">
+        <div className="overflow-hidden rounded-3xl border border-[#D4DFDF] bg-white shadow-xs">
           <div
             ref={mapContainerRef}
             className="h-[420px] w-full sm:h-[520px]"
             role="region"
             aria-label="Interactive map of Dumfries and Galloway bus stops"
           />
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#DCE4DF] bg-white px-4 py-2.5 text-xs font-semibold text-[#455952]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#DCE4E4] bg-white px-4 py-2.5 text-xs font-semibold text-[#455952]">
             <div className="flex flex-wrap items-center gap-4">
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-[#0F5C4A]" />
+                <span className="h-3 w-3 rounded-full bg-[#00838f]" />
                 Bus stop with routes
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-[#18314F]" />
+                <span className="h-3 w-3 rounded-full bg-[#95398d]" />
                 Selected stop
               </span>
             </div>
@@ -316,20 +331,25 @@ export function StopsMapView({
         {/* Stop Inspector / Nearby Panel */}
         <aside className="space-y-4">
           {selectedStop ? (
-            <div className="rounded-3xl border border-[#0F5C4A]/40 bg-white p-5 shadow-sm">
+            <div className="rounded-3xl border border-[#00838f]/40 bg-white p-5 shadow-sm">
               <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E7F3EE] text-[#0F5C4A]">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F5E6F4] text-[#95398d]">
                   <MapPin className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-extrabold text-[#111C18]">{selectedStop.name}</h2>
+                  <h2 className="text-lg font-extrabold text-[#111C18]">
+                    {formatStopDisplayName(selectedStop)}
+                  </h2>
                   {selectedStop.indicator && (
-                    <p className="text-sm font-semibold text-[#0F5C4A]">
+                    <p className="text-sm font-semibold text-[#006B75]">
                       {formatIndicator(selectedStop.indicator)}
                     </p>
                   )}
                   <p className="text-xs font-medium text-[#455952]">
-                    {selectedStop.locality || 'Dumfries & Galloway'} · Stop code {selectedStop.atcoCode}
+                    {[selectedStop.locality || 'Dumfries & Galloway', selectedStop.street]
+                      .filter(Boolean)
+                      .join(' · ')}{' '}
+                    · Stop code {selectedStop.atcoCode}
                   </p>
                 </div>
               </div>
@@ -338,7 +358,7 @@ export function StopsMapView({
                 <button
                   type="button"
                   onClick={() => onPlanFromStop(stopToPlaceOption(selectedStop))}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#0F5C4A] px-3 py-2 text-xs font-bold text-white hover:bg-[#0A4638]"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#00838f] px-3 py-2 text-xs font-bold text-white hover:bg-[#006B75]"
                 >
                   <Navigation className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Travel from here</span>
@@ -346,14 +366,14 @@ export function StopsMapView({
                 <button
                   type="button"
                   onClick={() => onPlanToStop(stopToPlaceOption(selectedStop))}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#CBD7D1] bg-white px-3 py-2 text-xs font-bold text-[#18314F] hover:bg-[#F2F6F4]"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 border-[#00838f] bg-white px-3 py-2 text-xs font-bold text-[#006B75] hover:bg-[#E4F4F6]"
                 >
                   <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Travel to here</span>
                 </button>
               </div>
 
-              <div className="mt-5 border-t border-[#E6ECE8] pt-4">
+              <div className="mt-5 border-t border-[#E6ECEC] pt-4">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[#455952]">
                   Buses calling at this stop ({selectedStopRoutes.length})
                 </h3>
@@ -368,9 +388,9 @@ export function StopsMapView({
                         key={route.id}
                         type="button"
                         onClick={() => onInspectRoute(route.id)}
-                        className="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-[#DCE4DF] bg-[#F8FAF9] px-3 py-2 text-left transition-colors hover:border-[#0F5C4A] hover:bg-[#EBF4F0]"
+                        className="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-[#DCE4E4] bg-[#F8FAFA] px-3 py-2 text-left transition-colors hover:border-[#00838f] hover:bg-[#E4F4F6]"
                       >
-                        <span className="flex min-w-11 items-center justify-center rounded-lg bg-[#18314F] px-2 py-1 text-xs font-extrabold text-white tabular-nums">
+                        <span className="flex min-w-11 items-center justify-center rounded-lg bg-[#95398d] px-2 py-1 text-xs font-extrabold text-white tabular-nums">
                           {route.lineName}
                         </span>
                         <span className="min-w-0 flex-1">
@@ -390,19 +410,19 @@ export function StopsMapView({
               </div>
             </div>
           ) : (
-            <div className="rounded-3xl border border-[#DCE4DF] bg-white p-5">
-              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-[#EFF5F2] text-[#0F5C4A]">
+            <div className="rounded-3xl border border-[#DCE4E4] bg-white p-5">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-[#E4F4F6] text-[#00838f]">
                 <Bus className="h-5 w-5" aria-hidden="true" />
               </div>
               <h2 className="text-base font-extrabold text-[#111C18]">Select a stop on the map</h2>
               <p className="mt-1 text-sm text-[#455952]">
-                Zoom in and tap any green dot to view its exact street location, routes, and plan a journey from there.
+                Zoom in and tap any teal pin to view its exact street location, routes, and plan a journey from there.
               </p>
             </div>
           )}
 
           {nearestStops.length > 0 && (
-            <div className="rounded-3xl border border-[#DCE4DF] bg-white p-5">
+            <div className="rounded-3xl border border-[#DCE4E4] bg-white p-5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#455952]">
                 Closest bus stops to you
               </h3>
@@ -412,17 +432,17 @@ export function StopsMapView({
                     <button
                       type="button"
                       onClick={() => focusStop(stop)}
-                      className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl bg-[#F6F9F7] px-3 py-2 text-left transition-colors hover:bg-[#E8F4EF]"
+                      className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl bg-[#F5F9FA] px-3 py-2 text-left transition-colors hover:bg-[#E4F4F6]"
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-[#111C18]">
-                          {stop.name}
+                          {formatStopDisplayName(stop)}
                         </span>
                         <span className="block truncate text-xs font-medium text-[#546860]">
                           {stop.locality}
                         </span>
                       </span>
-                      <span className="shrink-0 text-xs font-bold text-[#0F5C4A] tabular-nums">
+                      <span className="shrink-0 text-xs font-bold text-[#006B75] tabular-nums">
                         {formatDistance(distKm)}
                       </span>
                     </button>

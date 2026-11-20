@@ -119,7 +119,7 @@ export function PlaceAutocomplete({
             type="button"
             onClick={onUseNearMe}
             disabled={nearMeLoading}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-[#0F5C4A] transition-colors hover:bg-[#E7F3EE] disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#00838f] px-2.5 py-1 text-xs font-bold text-white transition-colors hover:bg-[#006B75] disabled:opacity-60"
           >
             <LocateFixed className="h-3.5 w-3.5" aria-hidden="true" />
             <span>{nearMeLoading ? 'Finding stop…' : 'Use nearest stop'}</span>
@@ -161,7 +161,7 @@ export function PlaceAutocomplete({
             }
           }}
           onKeyDown={handleKeyDown}
-          className="min-h-13 w-full rounded-xl border-2 border-[#CED9D3] bg-white pl-10 pr-11 py-3 text-base font-semibold text-[#111C18] placeholder:font-normal placeholder:text-[#667871] transition-colors hover:border-[#9EB5AA] focus:border-[#0F5C4A] focus:outline-none"
+          className="min-h-13 w-full rounded-xl border-2 border-[#CED9D9] bg-white pl-10 pr-11 py-3 text-base font-semibold text-[#111C18] placeholder:font-normal placeholder:text-[#667871] transition-colors hover:border-[#8AB4B8] focus:border-[#00838f] focus:outline-none"
         />
 
         {(inputText || value) && (
@@ -169,7 +169,7 @@ export function PlaceAutocomplete({
             type="button"
             onClick={handleClear}
             aria-label={`Clear ${label}`}
-            className="absolute right-2 flex h-9 w-9 items-center justify-center rounded-lg text-[#546860] transition-colors hover:bg-[#EDF3F0] hover:text-[#111C18]"
+            className="absolute right-2 flex h-9 w-9 items-center justify-center rounded-lg text-[#546860] transition-colors hover:bg-[#E4F4F6] hover:text-[#006B75]"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -185,13 +185,13 @@ export function PlaceAutocomplete({
           id={listboxId}
           role="listbox"
           aria-label={`${label} suggestions`}
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-80 overflow-y-auto rounded-2xl border border-[#CED9D3] bg-white p-1.5 shadow-xl"
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-80 overflow-y-auto rounded-2xl border border-[#CED9D9] bg-white p-1.5 shadow-xl"
         >
           {flatOptions.length === 0 ? (
             <div className="px-3.5 py-4 text-sm text-[#455952]">
               No towns or bus stops found for <strong className="text-[#111C18]">“{inputText}”</strong>.
-              Try a town name like <em>Annan</em>, <em>Lockerbie</em>, <em>Castle Douglas</em>, or{' '}
-              <em>DGRI</em>.
+              Try a town name like <em>Annan</em>, <em>Lockerbie</em>, <em>Castle Douglas</em>,{' '}
+              <em>Whitesands</em>, or <em>DGRI</em>.
             </div>
           ) : (
             <>
@@ -215,10 +215,10 @@ export function PlaceAutocomplete({
                         }}
                         onMouseEnter={() => setActiveIndex(idx)}
                         className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
-                          isHighlighted ? 'bg-[#E8F4EF] text-[#0A4638]' : 'hover:bg-[#F3F7F5]'
+                          isHighlighted ? 'bg-[#E4F4F6] text-[#005A63]' : 'hover:bg-[#F2F8F9]'
                         }`}
                       >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E4F0EB] text-[#0F5C4A]">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E4F4F6] text-[#00838f]">
                           <Building2 className="h-4 w-4" aria-hidden="true" />
                         </span>
                         <span className="min-w-0 flex-1">
@@ -236,7 +236,7 @@ export function PlaceAutocomplete({
               )}
 
               {matchedStops.length > 0 && (
-                <div className={matchedLocalities.length > 0 ? 'mt-1 border-t border-[#ECF1EE] pt-1' : ''}>
+                <div className={matchedLocalities.length > 0 ? 'mt-1 border-t border-[#ECF1F1] pt-1' : ''}>
                   <div className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wider text-[#546860]">
                     {inputText.trim() ? 'Specific Bus Stops' : 'Key Stops & Landmarks'}
                   </div>
@@ -256,10 +256,10 @@ export function PlaceAutocomplete({
                         }}
                         onMouseEnter={() => setActiveIndex(idx)}
                         className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
-                          isHighlighted ? 'bg-[#E8F4EF] text-[#0A4638]' : 'hover:bg-[#F3F7F5]'
+                          isHighlighted ? 'bg-[#E4F4F6] text-[#005A63]' : 'hover:bg-[#F2F8F9]'
                         }`}
                       >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#EAF0F6] text-[#18314F]">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F5E6F4] text-[#95398d]">
                           <MapPin className="h-4 w-4" aria-hidden="true" />
                         </span>
                         <span className="min-w-0 flex-1">

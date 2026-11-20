@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import { useEffect, useRef } from 'react'
-import { formatIndicator } from '../lib/transit'
+import { formatIndicator, formatStopDisplayName } from '../lib/transit'
 import type { BusStop } from '../types/transit'
 
 export interface MapStopPoint {
@@ -88,21 +88,21 @@ export function RouteMap({
     ])
     if (fullCoords.length >= 2) {
       L.polyline(fullCoords, {
-        color: '#8FA39B',
+        color: '#8FA3A6',
         weight: 3.5,
         opacity: 0.75,
         dashArray: '6 6',
       }).addTo(group)
     }
 
-    // Draw active journey segment (bold pine green solid line)
+    // Draw active journey segment (bold teal solid line)
     const segmentCoords: [number, number][] = validPoints
       .filter((p) => p.role === 'board' || p.role === 'segment' || p.role === 'alight')
       .map((p) => [p.stop.lat as number, p.stop.lng as number])
 
     if (segmentCoords.length >= 2) {
       L.polyline(segmentCoords, {
-        color: '#0F5C4A',
+        color: '#00838f',
         weight: 5,
         opacity: 0.95,
       }).addTo(group)
@@ -119,25 +119,26 @@ export function RouteMap({
 
       const marker = L.circleMarker([lat, lng], {
         radius: isBoard || isAlight ? 9 : isSegment ? 6 : 4.5,
-        color: isBoard ? '#FFFFFF' : isAlight ? '#FFFFFF' : isSegment ? '#0F5C4A' : '#647971',
+        color: isBoard ? '#FFFFFF' : isAlight ? '#FFFFFF' : isSegment ? '#00838f' : '#64797B',
         weight: isBoard || isAlight ? 3 : 2,
-        fillColor: isBoard ? '#0F5C4A' : isAlight ? '#18314F' : isSegment ? '#FFFFFF' : '#DDE5E1',
+        fillColor: isBoard ? '#00838f' : isAlight ? '#95398d' : isSegment ? '#FFFFFF' : '#DDE5E6',
         fillOpacity: 1,
       })
 
       const roleTag = isBoard
-        ? '<span style="display:inline-block;margin-bottom:4px;padding:2px 8px;border-radius:999px;background:#0F5C4A;color:#fff;font-size:11px;font-weight:700;">Get on here</span><br/>'
+        ? '<span style="display:inline-block;margin-bottom:4px;padding:2px 8px;border-radius:999px;background:#00838f;color:#fff;font-size:11px;font-weight:700;">Get on here</span><br/>'
         : isAlight
-          ? '<span style="display:inline-block;margin-bottom:4px;padding:2px 8px;border-radius:999px;background:#18314F;color:#fff;font-size:11px;font-weight:700;">Get off here</span><br/>'
+          ? '<span style="display:inline-block;margin-bottom:4px;padding:2px 8px;border-radius:999px;background:#95398d;color:#fff;font-size:11px;font-weight:700;">Get off here</span><br/>'
           : ''
 
+      const displayName = formatStopDisplayName(pt.stop)
       const ind = formatIndicator(pt.stop.indicator)
       const timeHtml = pt.time
-        ? `<div style="margin-top:4px;font-weight:800;color:#0F5C4A;font-size:13px;">Bus time: ${escapeHtml(pt.time)}</div>`
+        ? `<div style="margin-top:4px;font-weight:800;color:#006B75;font-size:13px;">Bus time: ${escapeHtml(pt.time)}</div>`
         : ''
 
       marker.bindPopup(
-        `${roleTag}<div style="font-weight:700;font-size:14px;">${escapeHtml(pt.stop.name)}</div>` +
+        `${roleTag}<div style="font-weight:700;font-size:14px;">${escapeHtml(displayName)}</div>` +
           (ind ? `<div style="font-size:12px;color:#455952;">${escapeHtml(ind)}</div>` : '') +
           (pt.stop.locality
             ? `<div style="font-size:12px;color:#546860;">${escapeHtml(pt.stop.locality)}</div>`
@@ -156,19 +157,19 @@ export function RouteMap({
   }, [points])
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-[#D4DFD9] bg-[#E9EFEC]">
+    <div className="relative overflow-hidden rounded-2xl border border-[#D4DFDF] bg-[#E9EFF0]">
       <div ref={containerRef} className={`w-full ${heightClass}`} role="region" aria-label={ariaLabel} />
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#DCE4DF] bg-white px-3.5 py-2 text-xs font-semibold text-[#455952]">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#DCE4E4] bg-white px-3.5 py-2 text-xs font-semibold text-[#455952]">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full border-2 border-white bg-[#0F5C4A] shadow-sm ring-1 ring-[#0F5C4A]" />
+          <span className="h-3 w-3 rounded-full border-2 border-white bg-[#00838f] shadow-sm ring-1 ring-[#00838f]" />
           Get on
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-full border-2 border-white bg-[#18314F] shadow-sm ring-1 ring-[#18314F]" />
+          <span className="h-3 w-3 rounded-full border-2 border-white bg-[#95398d] shadow-sm ring-1 ring-[#95398d]" />
           Get off
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full border-2 border-[#0F5C4A] bg-white" />
+          <span className="h-2.5 w-2.5 rounded-full border-2 border-[#00838f] bg-white" />
           Stops along the way
         </span>
       </div>

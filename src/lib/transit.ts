@@ -84,10 +84,59 @@ export function formatIndicator(indicator: string): string {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
 }
 
+const GENERIC_COMMON_NAME_RE =
+  /^(stance\s*\w*|stand\s*\w*|bay\s*\w*|stop\s*\w*|hospital|school|statue|post office|pub|court|shop|garage|hotel|church|shopping centre|industrial estate|business park|bridge|cross|square|station|estate|cottage|factory|hall|library|surgery|clinic|park|road end|junction|green|corner|depot|inn|hotel|car park|cenotaph|war memorial|town hall|police station|fire station|medical centre|health centre)$/i
+
+export function isDgriStop(stop: BusStop): boolean {
+  if (stop.atcoCode === '680000052222') return true
+  const combined = `${stop.name} ${stop.street ?? ''} ${stop.landmark ?? ''}`.toLowerCase()
+  if (combined.includes('dgri') || combined.includes('royal infirmary')) return true
+  if (
+    /^hospital$/i.test(stop.name.trim()) &&
+    (/cargenbridge/i.test(stop.locality) || /garroch/i.test(stop.street ?? ''))
+  ) {
+    return true
+  }
+  return false
+}
+
+export function isWhitesandsStop(stop: BusStop): boolean {
+  if (/^68000000150[2-6]$/.test(stop.atcoCode)) return true
+  const combined = `${stop.name} ${stop.street ?? ''} ${stop.landmark ?? ''}`.toLowerCase()
+  return combined.includes('whitesands')
+}
+
+export function formatStopDisplayName(stop: BusStop): string {
+  if (isDgriStop(stop)) {
+    return 'DGRI (Dumfries & Galloway Royal Infirmary)'
+  }
+
+  const name = stop.name.trim()
+  const street = (stop.street ?? '').trim()
+  const landmark = (stop.landmark ?? '').trim()
+
+  if (street && !name.toLowerCase().includes(street.toLowerCase())) {
+    if (GENERIC_COMMON_NAME_RE.test(name) || isWhitesandsStop(stop)) {
+      return `${street} — ${name}`
+    }
+  }
+
+  if (!street && isWhitesandsStop(stop) && !name.toLowerCase().includes('whitesands')) {
+    return `Whitesands — ${name}`
+  }
+
+  if (landmark && GENERIC_COMMON_NAME_RE.test(name) && !name.toLowerCase().includes(landmark.toLowerCase())) {
+    return `${landmark} — ${name}`
+  }
+
+  return name
+}
+
 export function formatStopLabel(stop: BusStop): string {
+  const display = formatStopDisplayName(stop)
   const ind = formatIndicator(stop.indicator)
-  if (!ind) return stop.name
-  return `${stop.name} (${ind})`
+  if (!ind) return display
+  return `${display} (${ind})`
 }
 
 export function formatDaysPlainEnglish(days: DayCode[]): string {
@@ -156,7 +205,7 @@ export function formatDistance(km: number): string {
 
 /**
  * Build searchable PlaceOptions for both Towns/Villages (localities) and individual bus stops.
- * Only includes localities and stops that actually have bus routes or active stop data.
+ * Includes smart D&G landmark hubs (Whitesands All Stances, DGRI Hospital) and indexes NaPTAN Street.
  */
 export function buildPlaceOptions(
   stops: BusStop[],
@@ -200,7 +249,7 @@ export function buildPlaceOptions(
       stopIds: locStops.map((s) => s.atcoCode),
       lat: avgLat,
       lng: avgLng,
-      searchKey: `${loc.toLowerCase()} ${locStops.map((s) => s.name.toLowerCase()).join(' ')}`,
+      searchKey: `${loc.toLowerCase()} ${locStops.map((s) => `${s.name} ${s.street ?? ''}`.toLowerCase()).join(' ')}`,
     })
   }
   localities.sort((a, b) => {
@@ -210,23 +259,65 @@ export function buildPlaceOptions(
     return b.stopIds.length - a.stopIds.length || a.label.localeCompare(b.label)
   })
 
-  const stopOptions: PlaceOption[] = stops
-    .filter((s) => servedStopIds.size === 0 || servedStopIds.has(s.atcoCode))
-    .map((s) => {
-      const ind = formatIndicator(s.indicator)
-      const parts = [s.locality, ind].filter(Boolean)
-      const alias = /royal infirmary|dgri/i.test(s.name) ? ' dgri hospital infirmary' : ''
-      return {
-        id: `stop:${s.atcoCode}`,
-        kind: 'stop',
-        label: s.name,
-        sublabel: parts.join(' · ') || s.atcoCode,
-        stopIds: [s.atcoCode],
-        lat: s.lat,
-        lng: s.lng,
-        searchKey: `${s.name} ${s.locality} ${s.indicator} ${s.atcoCode}${alias}`.toLowerCase(),
-      }
+  const activeStops = stops.filter((s) => servedStopIds.size === 0 || servedStopIds.has(s.atcoCode))
+
+  const stopOptions: PlaceOption[] = []
+
+  // Grouped landmark hub: Whitesands (All Stances) in Dumfries
+  const whitesandsStops = activeStops.filter((s) => isWhitesandsStop(s))
+  if (whitesandsStops.length >= 2) {
+    const coords = whitesandsStops.filter((s) => s.lat !== null && s.lng !== null)
+    stopOptions.push({
+      id: 'hub:whitesands',
+      kind: 'stop',
+      label: 'Whitesands (All Stances)',
+      sublabel: `Dumfries town centre · ${whitesandsStops.length} bus stances`,
+      stopIds: whitesandsStops.map((s) => s.atcoCode),
+      lat: coords.length ? coords.reduce((acc, s) => acc + (s.lat ?? 0), 0) / coords.length : null,
+      lng: coords.length ? coords.reduce((acc, s) => acc + (s.lng ?? 0), 0) / coords.length : null,
+      searchKey: 'whitesands dumfries bus station stances town centre',
     })
+  }
+
+  for (const s of activeStops) {
+    const displayName = formatStopDisplayName(s)
+    const ind = formatIndicator(s.indicator)
+    const streetExtra =
+      s.street && !displayName.toLowerCase().includes(s.street.toLowerCase()) ? s.street : ''
+    const parts = [s.locality, streetExtra, ind].filter(Boolean)
+
+    const aliases: string[] = []
+    if (isDgriStop(s)) {
+      aliases.push('dgri', 'dumfries royal infirmary', 'hospital', 'infirmary', 'dumfries hospital')
+    } else if (/hospital/i.test(s.name)) {
+      aliases.push('dgri', 'infirmary', 'hospital')
+    }
+    if (isWhitesandsStop(s)) {
+      aliases.push('whitesands', 'dumfries bus station')
+    }
+
+    stopOptions.push({
+      id: `stop:${s.atcoCode}`,
+      kind: 'stop',
+      label: displayName,
+      sublabel: parts.join(' · ') || s.atcoCode,
+      stopIds: [s.atcoCode],
+      lat: s.lat,
+      lng: s.lng,
+      searchKey: [
+        displayName,
+        s.name,
+        s.street ?? '',
+        s.landmark ?? '',
+        s.locality,
+        s.indicator,
+        s.atcoCode,
+        ...aliases,
+      ]
+        .join(' ')
+        .toLowerCase(),
+    })
+  }
 
   return { localities, stopOptions }
 }
@@ -250,10 +341,11 @@ export function searchPlaceOptions(
 
   const scoreOption = (opt: PlaceOption): number => {
     const labelLower = opt.label.toLowerCase()
-    if (labelLower === q) return 100
-    if (labelLower.startsWith(q)) return 85
-    if (tokens.every((t) => labelLower.includes(t))) return 70
-    if (tokens.every((t) => opt.searchKey.includes(t))) return 45
+    if (labelLower === q) return 110
+    if (labelLower.startsWith(q)) return 95
+    if (opt.id === 'hub:whitesands' && q.includes('white')) return 98
+    if (tokens.every((t) => labelLower.includes(t))) return 80
+    if (tokens.every((t) => opt.searchKey.includes(t))) return 55
     return 0
   }
 
@@ -276,7 +368,7 @@ export function searchPlaceOptions(
 
 function isHubStop(stop: BusStop | undefined): boolean {
   if (!stop) return false
-  const text = `${stop.name} ${stop.indicator}`.toLowerCase()
+  const text = `${stop.name} ${stop.street ?? ''} ${stop.indicator}`.toLowerCase()
   return HUB_KEYWORDS.some((kw) => text.includes(kw))
 }
 

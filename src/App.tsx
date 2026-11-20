@@ -71,10 +71,10 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F6F8F6] text-[#111C18]">
+    <div className="flex min-h-screen flex-col bg-[#F6F8F8] text-[#111C18]">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-[#0F5C4A] focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-white focus:shadow-lg"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-[#00838f] focus:px-4 focus:py-2.5 focus:text-sm focus:font-bold focus:text-white focus:shadow-lg"
       >
         Skip to main content
       </a>
@@ -90,8 +90,8 @@ export default function App() {
 
       <main id="main-content" className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
         {loading ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-[#DCE4DF] bg-white p-12 text-center shadow-xs">
-            <Loader2 className="h-8 w-8 animate-spin text-[#0F5C4A]" aria-hidden="true" />
+          <div className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-[#DCE4E4] bg-white p-12 text-center shadow-xs">
+            <Loader2 className="h-8 w-8 animate-spin text-[#00838f]" aria-hidden="true" />
             <p className="text-base font-bold text-[#111C18]">Loading Dumfries &amp; Galloway bus timetables…</p>
             <p className="text-sm text-[#455952]">Preparing stops and routes across the region</p>
           </div>
@@ -108,7 +108,7 @@ export default function App() {
             <button
               type="button"
               onClick={handleRetry}
-              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#0F5C4A] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0A4638]"
+              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#00838f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#006B75]"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               <span>Try again</span>

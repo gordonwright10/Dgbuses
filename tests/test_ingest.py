@@ -14,12 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import ingest  # noqa: E402
 
 
-SAMPLE_NAPTAN_CSV = """\ufeffATCOCode,CommonName,LocalityName,Indicator,Latitude,Longitude,Status,StopType
-680000101,Whitesands,Dumfries,Stand 3,55.069123,-3.613456,active,BCS
-680000102,DGRI Main Entrance,Dumfries,outside,55.061901,-3.643102,,BCT
-680000201,High Street,Annan,opp Bank of Scotland,54.987111,-3.259822,active,BCT
-680000999,Old Closed Stop,Annan,adj,54.986000,-3.258000,inactive,BCT
-680000888,Dumfries Rail Station,Dumfries,,55.074800,-3.606100,active,RLY
+SAMPLE_NAPTAN_CSV = """\ufeffATCOCode,CommonName,LocalityName,Indicator,Street,Landmark,Latitude,Longitude,Status,StopType
+680000101,Stance 3,Dumfries,at,Whitesands,-,55.069123,-3.613456,active,BCS
+680000102,Hospital,Cargenbridge,at,Garroch Loaning,DGRI,55.061901,-3.643102,,BCT
+680000201,High Street,Annan,opp Bank of Scotland,High Street,Not Available,54.987111,-3.259822,active,BCT
+680000999,Old Closed Stop,Annan,adj,High Street,,54.986000,-3.258000,inactive,BCT
+680000888,Dumfries Rail Station,Dumfries,,Station Road,,55.074800,-3.606100,active,RLY
 """
 
 TXC_21_XML = b"""<?xml version="1.0" encoding="utf-8"?>
@@ -211,8 +211,13 @@ class TestIngestPipeline(unittest.TestCase):
         stops = ingest.parse_naptan_stops(SAMPLE_NAPTAN_CSV.encode("utf-8"))
         self.assertEqual(set(stops.keys()), {"680000101", "680000102", "680000201"})
         self.assertEqual(stops["680000101"]["lat"], 55.06912)
-        self.assertEqual(stops["680000101"]["indicator"], "Stand 3")
-        self.assertEqual(stops["680000102"]["name"], "DGRI Main Entrance")
+        self.assertEqual(stops["680000101"]["indicator"], "at")
+        self.assertEqual(stops["680000101"]["street"], "Whitesands")
+        self.assertNotIn("landmark", stops["680000101"])
+        self.assertEqual(stops["680000102"]["name"], "Hospital")
+        self.assertEqual(stops["680000102"]["street"], "Garroch Loaning")
+        self.assertEqual(stops["680000102"]["landmark"], "DGRI")
+        self.assertNotIn("street", stops["680000201"])  # identical to CommonName
 
     def test_txc_21_timing_inheritance_and_school_flags(self) -> None:
         parsed = ingest.parse_txc_xml(TXC_21_XML, reference_date="2026-11-20")

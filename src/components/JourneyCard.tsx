@@ -15,6 +15,7 @@ import {
   formatDaysPlainEnglish,
   formatDuration,
   formatIndicator,
+  formatStopDisplayName,
 } from '../lib/transit'
 import type { BusStop, JourneyMatch } from '../types/transit'
 import { RouteMap, type MapStopPoint } from './RouteMap'
@@ -40,6 +41,8 @@ export function JourneyCard({
   const [showMap, setShowMap] = useState(false)
 
   const countdown = isToday ? formatCountdown(match.boardTime, nowMins) : null
+  const boardDisplayName = formatStopDisplayName(match.boardStop)
+  const alightDisplayName = formatStopDisplayName(match.alightStop)
   const boardIndicator = formatIndicator(match.boardStop.indicator)
   const alightIndicator = formatIndicator(match.alightStop.indicator)
 
@@ -84,12 +87,12 @@ export function JourneyCard({
     <article
       className={`overflow-hidden rounded-2xl border bg-white transition-shadow ${
         isNextBus
-          ? 'border-[#0F5C4A] shadow-md ring-1 ring-[#0F5C4A]/15'
-          : 'border-[#DCE4DF] shadow-xs hover:shadow-sm'
+          ? 'border-[#00838f] shadow-md ring-1 ring-[#00838f]/20'
+          : 'border-[#DCE4E4] shadow-xs hover:shadow-sm'
       }`}
     >
       {isNextBus && (
-        <div className="flex items-center justify-between bg-[#0F5C4A] px-4 py-2 text-xs font-bold text-white">
+        <div className="flex items-center justify-between bg-[#00838f] px-4 py-2 text-xs font-bold text-white">
           <span className="inline-flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
             Next bus
@@ -106,7 +109,7 @@ export function JourneyCard({
               type="button"
               onClick={() => onInspectRoute(match.route.id)}
               title={`View full timetable for route ${match.route.lineName}`}
-              className="flex min-h-12 min-w-14 items-center justify-center rounded-xl bg-[#18314F] px-3 text-lg font-extrabold tracking-tight text-white tabular-nums transition-colors hover:bg-[#0F5C4A]"
+              className="flex min-h-12 min-w-14 items-center justify-center rounded-xl bg-[#95398d] px-3 text-lg font-extrabold tracking-tight text-white tabular-nums transition-colors hover:bg-[#7A2D73]"
             >
               {match.route.lineName}
             </button>
@@ -115,7 +118,7 @@ export function JourneyCard({
                 <span className="text-2xl font-extrabold tracking-tight text-[#111C18] tabular-nums">
                   {match.boardTime}
                 </span>
-                <ArrowRight className="h-4 w-4 text-[#5D726A]" aria-hidden="true" />
+                <ArrowRight className="h-4 w-4 text-[#5D7274]" aria-hidden="true" />
                 <span className="text-2xl font-extrabold tracking-tight text-[#111C18] tabular-nums">
                   {match.alightTime}
                 </span>
@@ -128,28 +131,28 @@ export function JourneyCard({
           </div>
 
           <div className="flex flex-col items-end gap-1 text-right">
-            <span className="inline-flex items-center rounded-lg bg-[#EFF5F2] px-2.5 py-1 text-sm font-bold text-[#14392E] tabular-nums">
+            <span className="inline-flex items-center rounded-lg bg-[#E4F4F6] px-2.5 py-1 text-sm font-bold text-[#005A63] tabular-nums">
               {formatDuration(match.durationMins)}
             </span>
             {!isNextBus && countdown && (
-              <span className="text-xs font-bold text-[#0F5C4A] tabular-nums">{countdown}</span>
+              <span className="text-xs font-bold text-[#006B75] tabular-nums">{countdown}</span>
             )}
           </div>
         </div>
 
         {/* Plain-English Boarding & Alighting Stops */}
-        <div className="mt-4 grid gap-2.5 rounded-xl bg-[#F6F9F7] p-3.5 sm:grid-cols-2">
+        <div className="mt-4 grid gap-2.5 rounded-xl bg-[#F6F9F9] p-3.5 sm:grid-cols-2">
           <div className="flex items-start gap-2.5">
             <span
               aria-hidden="true"
-              className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#0F5C4A]"
+              className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#00838f]"
             />
             <div className="min-w-0">
-              <span className="block text-[11px] font-bold uppercase tracking-wider text-[#0F5C4A]">
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-[#006B75]">
                 Get on at {match.boardTime}
               </span>
               <span className="block text-sm font-bold text-[#111C18]">
-                {match.boardStop.name}
+                {boardDisplayName}
               </span>
               {(boardIndicator || match.boardStop.locality) && (
                 <span className="block text-xs font-medium text-[#455952]">
@@ -157,7 +160,7 @@ export function JourneyCard({
                 </span>
               )}
               {match.extraFromStops > 0 && (
-                <span className="mt-0.5 block text-xs font-semibold text-[#0F5C4A]">
+                <span className="mt-0.5 block text-xs font-semibold text-[#006B75]">
                   + {match.extraFromStops} other stop{match.extraFromStops === 1 ? '' : 's'} in{' '}
                   {match.boardStop.locality || 'this town'}
                 </span>
@@ -165,17 +168,17 @@ export function JourneyCard({
             </div>
           </div>
 
-          <div className="flex items-start gap-2.5 border-t border-[#E4ECE7] pt-2.5 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
+          <div className="flex items-start gap-2.5 border-t border-[#E4ECEC] pt-2.5 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
             <span
               aria-hidden="true"
-              className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#18314F]"
+              className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[#95398d]"
             />
             <div className="min-w-0">
-              <span className="block text-[11px] font-bold uppercase tracking-wider text-[#18314F]">
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-[#7A2D73]">
                 Get off at {match.alightTime}
               </span>
               <span className="block text-sm font-bold text-[#111C18]">
-                {match.alightStop.name}
+                {alightDisplayName}
               </span>
               {(alightIndicator || match.alightStop.locality) && (
                 <span className="block text-xs font-medium text-[#455952]">
@@ -183,7 +186,7 @@ export function JourneyCard({
                 </span>
               )}
               {match.extraToStops > 0 && (
-                <span className="mt-0.5 block text-xs font-semibold text-[#18314F]">
+                <span className="mt-0.5 block text-xs font-semibold text-[#7A2D73]">
                   + {match.extraToStops} other stop{match.extraToStops === 1 ? '' : 's'} in{' '}
                   {match.alightStop.locality || 'this town'}
                 </span>
@@ -194,7 +197,7 @@ export function JourneyCard({
 
         {/* Plain-English Operating Notes (Zero Timetable Jargon) */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#F0F4F2] px-2.5 py-1 text-xs font-semibold text-[#2E423B]">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#EFF4F4] px-2.5 py-1 text-xs font-semibold text-[#2E4242]">
             <CalendarClock className="h-3.5 w-3.5 text-[#455952]" aria-hidden="true" />
             {formatDaysPlainEnglish(match.trip.days)}
           </span>
@@ -221,18 +224,22 @@ export function JourneyCard({
           )}
         </div>
 
-        {/* Action Row: Large Tap Targets */}
+        {/* Action Row: Large Tap Targets (#00838f primary buttons) */}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setShowStops((v) => !v)}
             aria-expanded={showStops}
-            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[#CBD7D1] bg-white px-3.5 py-2 text-sm font-bold text-[#1C2E27] transition-colors hover:bg-[#F2F6F4] sm:flex-none"
+            className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition-colors sm:flex-none ${
+              showStops
+                ? 'bg-[#006B75] text-white'
+                : 'bg-[#00838f] text-white hover:bg-[#006B75]'
+            }`}
           >
             {showStops ? (
-              <ChevronUp className="h-4 w-4 text-[#0F5C4A]" aria-hidden="true" />
+              <ChevronUp className="h-4 w-4" aria-hidden="true" />
             ) : (
-              <ChevronDown className="h-4 w-4 text-[#0F5C4A]" aria-hidden="true" />
+              <ChevronDown className="h-4 w-4" aria-hidden="true" />
             )}
             <span>
               {showStops
@@ -245,20 +252,20 @@ export function JourneyCard({
             type="button"
             onClick={() => setShowMap((v) => !v)}
             aria-expanded={showMap}
-            className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-bold transition-colors sm:flex-none ${
+            className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border-2 px-4 py-2 text-sm font-bold transition-colors sm:flex-none ${
               showMap
-                ? 'border-[#0F5C4A] bg-[#E8F4EF] text-[#0A4638]'
-                : 'border-[#CBD7D1] bg-white text-[#1C2E27] hover:bg-[#F2F6F4]'
+                ? 'border-[#00838f] bg-[#00838f] text-white'
+                : 'border-[#00838f] bg-white text-[#006B75] hover:bg-[#E4F4F6]'
             }`}
           >
-            <MapIcon className="h-4 w-4 text-[#0F5C4A]" aria-hidden="true" />
+            <MapIcon className="h-4 w-4" aria-hidden="true" />
             <span>{showMap ? 'Hide map' : 'Show on map'}</span>
           </button>
         </div>
 
         {/* Expandable Stop-by-Stop Timeline */}
         {showStops && (
-          <div className="mt-4 border-t border-[#E6ECE8] pt-4">
+          <div className="mt-4 border-t border-[#E6ECEC] pt-4">
             <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-[#455952]">
               Stops along your journey
             </h4>
@@ -268,6 +275,7 @@ export function JourneyCard({
                 const isLast = i === segmentStops.length - 1
                 const isFromZone = fromIndexSet.has(absIdx)
                 const isToZone = toIndexSet.has(absIdx)
+                const displayName = formatStopDisplayName(stop)
                 const ind = formatIndicator(stop.indicator)
 
                 return (
@@ -275,7 +283,7 @@ export function JourneyCard({
                     {!isLast && (
                       <span
                         aria-hidden="true"
-                        className="absolute left-[4.35rem] top-3 bottom-0 w-0.5 bg-[#C5D5CE]"
+                        className="absolute left-[4.35rem] top-3 bottom-0 w-0.5 bg-[#BBD6D9]"
                       />
                     )}
                     <span className="w-14 shrink-0 pt-0.5 text-right text-sm font-bold text-[#111C18] tabular-nums">
@@ -285,14 +293,14 @@ export function JourneyCard({
                       <span
                         className={`rounded-full ${
                           isFirst
-                            ? 'h-3.5 w-3.5 bg-[#0F5C4A] ring-4 ring-[#0F5C4A]/20'
+                            ? 'h-3.5 w-3.5 bg-[#00838f] ring-4 ring-[#00838f]/20'
                             : isLast
-                              ? 'h-3.5 w-3.5 bg-[#18314F] ring-4 ring-[#18314F]/20'
+                              ? 'h-3.5 w-3.5 bg-[#95398d] ring-4 ring-[#95398d]/20'
                               : isFromZone
-                                ? 'h-2.5 w-2.5 bg-[#0F5C4A]'
+                                ? 'h-2.5 w-2.5 bg-[#00838f]'
                                 : isToZone
-                                  ? 'h-2.5 w-2.5 bg-[#18314F]'
-                                  : 'h-2.5 w-2.5 border-2 border-[#0F5C4A] bg-white'
+                                  ? 'h-2.5 w-2.5 bg-[#95398d]'
+                                  : 'h-2.5 w-2.5 border-2 border-[#00838f] bg-white'
                         }`}
                       />
                     </span>
@@ -303,15 +311,15 @@ export function JourneyCard({
                             isFirst || isLast ? 'font-extrabold text-[#111C18]' : 'font-semibold text-[#1F302A]'
                           }`}
                         >
-                          {stop.name}
+                          {displayName}
                         </span>
                         {isFirst && (
-                          <span className="rounded bg-[#E4F3ED] px-1.5 py-0.5 text-[11px] font-bold text-[#0A4638]">
+                          <span className="rounded bg-[#E4F4F6] px-1.5 py-0.5 text-[11px] font-bold text-[#005A63]">
                             Board
                           </span>
                         )}
                         {isLast && (
-                          <span className="rounded bg-[#E5ECF4] px-1.5 py-0.5 text-[11px] font-bold text-[#18314F]">
+                          <span className="rounded bg-[#F5E6F4] px-1.5 py-0.5 text-[11px] font-bold text-[#7A2D73]">
                             Get off
                           </span>
                         )}
@@ -331,10 +339,10 @@ export function JourneyCard({
 
         {/* Expandable Interactive Leaflet Route Map */}
         {showMap && (
-          <div className="mt-4 border-t border-[#E6ECE8] pt-4">
+          <div className="mt-4 border-t border-[#E6ECEC] pt-4">
             <RouteMap
               points={mapPoints}
-              ariaLabel={`Map for route ${match.route.lineName} from ${match.boardStop.name} to ${match.alightStop.name}`}
+              ariaLabel={`Map for route ${match.route.lineName} from ${boardDisplayName} to ${alightDisplayName}`}
             />
           </div>
         )}
