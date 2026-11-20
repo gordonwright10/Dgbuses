@@ -128,6 +128,6 @@ export interface ConnectingJourneyMatch {
   changeAtLabel: string
 }
 
-export type TimeFilterMode = 'now' | 'after' | 'all'
+export type TimeFilterMode = 'now' | 'after' | 'arriveBy' | 'all'
 
 export type ActiveTab = 'planner' | 'routes' | 'map'

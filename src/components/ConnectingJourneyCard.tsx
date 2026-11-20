@@ -7,8 +7,10 @@ import {
   Footprints,
   GraduationCap,
   Map as MapIcon,
+  Moon,
   Repeat2,
   Sun,
+  Undo2,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import {
@@ -23,10 +25,13 @@ import { RouteMap, type MapStopPoint } from './RouteMap'
 interface ConnectingJourneyCardProps {
   match: ConnectingJourneyMatch
   stopMap: Map<string, BusStop>
-  isNextBus: boolean
+  highlightLabel?: string | null
+  isLastBus?: boolean
+  dayLabel?: string
   isToday: boolean
   nowMins: number
   onInspectRoute: (routeId: string) => void
+  onCheckReturn?: (arrivalHHMM: string) => void
 }
 
 function getSegmentStops(leg: JourneyLeg, stopMap: Map<string, BusStop>) {
@@ -47,15 +52,19 @@ function getSegmentStops(leg: JourneyLeg, stopMap: Map<string, BusStop>) {
 export function ConnectingJourneyCard({
   match,
   stopMap,
-  isNextBus,
+  highlightLabel = null,
+  isLastBus = false,
+  dayLabel = 'today',
   isToday,
   nowMins,
   onInspectRoute,
+  onCheckReturn,
 }: ConnectingJourneyCardProps) {
   const [showStops, setShowStops] = useState(false)
   const [showMap, setShowMap] = useState(false)
 
   const { leg1, leg2 } = match
+  const isHighlighted = Boolean(highlightLabel)
   const countdown = isToday ? formatCountdown(leg1.boardTime, nowMins) : null
 
   const leg1BoardName = formatStopDisplayName(leg1.boardStop)
@@ -97,24 +106,24 @@ export function ConnectingJourneyCard({
   return (
     <article
       className={`overflow-hidden rounded-2xl border bg-white transition-shadow ${
-        isNextBus
+        isHighlighted
           ? 'border-[#00838f] shadow-md ring-1 ring-[#00838f]/20'
           : 'border-[#DCE4E4] shadow-xs hover:shadow-sm'
       }`}
     >
       <div
         className={`flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs font-bold ${
-          isNextBus ? 'bg-[#00838f] text-white' : 'bg-[#F5EBF4] text-[#7A2D73]'
+          isHighlighted ? 'bg-[#00838f] text-white' : 'bg-[#F5EBF4] text-[#7A2D73]'
         }`}
       >
         <span className="inline-flex items-center gap-1.5">
-          {isNextBus ? (
+          {isHighlighted ? (
             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
           ) : (
             <Repeat2 className="h-3.5 w-3.5" aria-hidden="true" />
           )}
           <span>
-            {isNextBus ? 'Next connecting journey · ' : ''}1 change at {match.changeAtLabel}
+            {highlightLabel ? `${highlightLabel} · ` : ''}1 change at {match.changeAtLabel}
           </span>
         </span>
         {countdown && <span className="tabular-nums">{countdown}</span>}
@@ -163,7 +172,7 @@ export function ConnectingJourneyCard({
             <span className="inline-flex items-center rounded-lg bg-[#E4F4F6] px-2.5 py-1 text-sm font-bold text-[#005A63] tabular-nums">
               {formatDuration(match.totalDurationMins)} total
             </span>
-            {!isNextBus && countdown && (
+            {!isHighlighted && countdown && (
               <span className="text-xs font-bold text-[#006B75] tabular-nums">{countdown}</span>
             )}
           </div>
@@ -255,8 +264,14 @@ export function ConnectingJourneyCard({
         </div>
 
         {/* Plain-English Service Notes */}
-        {(hasSchoolOnly || hasNonSchoolOnly || bankHolidayNote) && (
+        {(isLastBus || hasSchoolOnly || hasNonSchoolOnly || bankHolidayNote) && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            {isLastBus && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-2.5 py-1 text-xs font-bold text-[#991B1B]">
+                <Moon className="h-3.5 w-3.5" aria-hidden="true" />
+                Last connecting journey {dayLabel}
+              </span>
+            )}
             {hasSchoolOnly && (
               <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#FEF3C7] px-2.5 py-1 text-xs font-bold text-[#92400E]">
                 <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
@@ -311,6 +326,17 @@ export function ConnectingJourneyCard({
             <MapIcon className="h-4 w-4" aria-hidden="true" />
             <span>{showMap ? 'Hide map' : 'Show both buses on map'}</span>
           </button>
+
+          {onCheckReturn && (
+            <button
+              type="button"
+              onClick={() => onCheckReturn(leg2.alightTime)}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-2 border-[#95398d]/35 bg-[#FBF6FB] px-4 py-2 text-sm font-bold text-[#7A2D73] transition-colors hover:border-[#95398d] hover:bg-[#95398d] hover:text-white sm:w-auto"
+            >
+              <Undo2 className="h-4 w-4" aria-hidden="true" />
+              <span>Check return buses</span>
+            </button>
+          )}
         </div>
 
         {/* Expandable 2-Leg Stop Timeline */}
