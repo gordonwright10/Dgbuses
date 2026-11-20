@@ -189,18 +189,26 @@ export function buildPlaceOptions(
       coords.length > 0 ? coords.reduce((sum, s) => sum + (s.lng ?? 0), 0) / coords.length : null
 
     const activeCount = servedCount || locStops.length
+    const isDgLocality = locStops.some((s) => s.atcoCode.startsWith('680'))
     localities.push({
       id: `loc:${loc.toLowerCase()}`,
       kind: 'locality',
       label: loc,
-      sublabel: `Town / village · ${activeCount} bus stop${activeCount === 1 ? '' : 's'}`,
+      sublabel: isDgLocality
+        ? `Town / village · ${activeCount} bus stop${activeCount === 1 ? '' : 's'}`
+        : `Cross-border destination · ${activeCount} stop${activeCount === 1 ? '' : 's'}`,
       stopIds: locStops.map((s) => s.atcoCode),
       lat: avgLat,
       lng: avgLng,
       searchKey: `${loc.toLowerCase()} ${locStops.map((s) => s.name.toLowerCase()).join(' ')}`,
     })
   }
-  localities.sort((a, b) => b.stopIds.length - a.stopIds.length || a.label.localeCompare(b.label))
+  localities.sort((a, b) => {
+    const aDg = a.stopIds.some((id) => id.startsWith('680')) ? 1 : 0
+    const bDg = b.stopIds.some((id) => id.startsWith('680')) ? 1 : 0
+    if (aDg !== bDg) return bDg - aDg
+    return b.stopIds.length - a.stopIds.length || a.label.localeCompare(b.label)
+  })
 
   const stopOptions: PlaceOption[] = stops
     .filter((s) => servedStopIds.size === 0 || servedStopIds.has(s.atcoCode))

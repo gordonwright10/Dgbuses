@@ -4,7 +4,7 @@ A fast, accessible, mobile-first web application for searching live **Dumfries &
 
 - **Live site:** `https://gordonwright10.github.io/Dgbuses/`
 - **Hosting cost:** £0 (static site on GitHub Pages)
-- **Data refresh:** Nightly GitHub Actions ETL pipeline pulling live **DfT NaPTAN** stops (`ATCO 670`) and **Traveline TNDS** Scottish timetables (`S.zip`)
+- **Data refresh:** Nightly GitHub Actions ETL pipeline pulling live **DfT NaPTAN** stops (`ATCO 680`) and **Traveline TNDS** Scottish timetables (`S.zip`)
 
 ## Features
 

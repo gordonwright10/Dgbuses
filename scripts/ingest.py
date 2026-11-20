@@ -2,7 +2,7 @@
 """
 D&G Bus Finder — Live Data Pipeline (ETL)
 
-Fetches live Dumfries & Galloway bus stops from DfT NaPTAN (ATCO area 670)
+Fetches live Dumfries & Galloway bus stops from DfT NaPTAN (ATCO area 680)
 and live Scottish bus timetables from Traveline TNDS (S.zip via FTP),
 compiling them into compact static JSON files in public/data/.
 
@@ -28,13 +28,14 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-NAPTAN_URL = (
+NAPTAN_URL_TEMPLATE = (
     "https://naptan.api.dft.gov.uk/v1/access-nodes"
-    "?atcoAreaCodes=670&dataFormat=csv"
+    "?atcoAreaCodes={codes}&dataFormat=csv"
 )
+DG_ATCO_PREFIX = "680"
+NAPTAN_URL = NAPTAN_URL_TEMPLATE.format(codes=DG_ATCO_PREFIX)
 TNDS_FTP_HOST = "ftp.tnds.basemap.co.uk"
 TNDS_ZIP_NAME = "S.zip"
-DG_ATCO_PREFIX = "670"
 
 BUS_STOP_TYPES = {
     "",
@@ -402,10 +403,10 @@ def parse_txc_xml(
 ) -> dict[str, Any] | None:
     """
     Parse a single TransXChange XML document.
-    Returns None if the file does not serve any Dumfries & Galloway (670*) stop.
+    Returns None if the file does not serve any Dumfries & Galloway (680*) stop.
     """
     # Fast byte pre-filter before XML parsing
-    if b"670" not in xml_bytes:
+    if DG_ATCO_PREFIX.encode("ascii") not in xml_bytes:
         return None
 
     try:
@@ -415,7 +416,7 @@ def parse_txc_xml(
 
     strip_namespaces(root)
 
-    # Verify at least one StopPointRef actually starts with "670"
+    # Verify at least one StopPointRef actually starts with "680"
     serves_dg = False
     for ref in root.iter("StopPointRef"):
         if ref.text and ref.text.strip().startswith(DG_ATCO_PREFIX):
@@ -723,7 +724,7 @@ def parse_txc_xml(
             if len(stop_times) < 2:
                 continue
 
-            # Keep trip only if it actually touches at least one D&G stop (670*)
+            # Keep trip only if it actually touches at least one D&G stop (680*)
             if not any(s[0].startswith(DG_ATCO_PREFIX) for s in stop_times):
                 continue
 
@@ -800,12 +801,63 @@ def ingest_tnds_zip(
     return all_trips, fallback_stops, stats
 
 
+def enrich_cross_border_stops_from_naptan(
+    stops_map: dict[str, dict[str, Any]],
+    referenced_stop_ids: set[str],
+) -> int:
+    """
+    Fetch NaPTAN metadata (locality, indicator, lat/lng) for neighbouring ATCO areas
+    only for the specific cross-border stops actually called at by D&G (680*) buses.
+    """
+    missing_ids = {s for s in referenced_stop_ids if s not in stops_map}
+    if not missing_ids:
+        return 0
+
+    area_codes = sorted(
+        {
+            s[:3]
+            for s in missing_ids
+            if len(s) >= 3 and s[:3].isdigit() and s[:3] != DG_ATCO_PREFIX
+        }
+    )
+    if not area_codes:
+        return 0
+
+    # Cap to a reasonable number of neighbouring areas
+    codes_param = ",".join(area_codes[:15])
+    url = NAPTAN_URL_TEMPLATE.format(codes=codes_param)
+    log(
+        f"Enriching {len(missing_ids)} cross-border stops from NaPTAN "
+        f"(neighbouring ATCO areas: {codes_param})..."
+    )
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Dgbuses-ETL/1.0 (+https://gordonwright10.github.io/Dgbuses/)"},
+        )
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            csv_bytes = resp.read()
+        neighbour_stops = parse_naptan_stops(csv_bytes)
+    except Exception as exc:
+        log(f"Warning: cross-border NaPTAN enrichment skipped ({exc}); falling back to TXC annotations")
+        return 0
+
+    added = 0
+    for s_id in missing_ids:
+        if s_id in neighbour_stops:
+            stops_map[s_id] = neighbour_stops[s_id]
+            added += 1
+    log(f"Enriched {added} cross-border stops with full NaPTAN coordinates and locality names")
+    return added
+
+
 def build_and_write_outputs(
     output_dir: Path,
     stops_map: dict[str, dict[str, Any]],
     all_trips: list[dict[str, Any]],
     fallback_stops: dict[str, dict[str, Any]],
     source_label: str = "live",
+    allow_network_enrichment: bool = False,
 ) -> dict[str, Any]:
     """Compile stops, routes, per-route schedules, and metadata JSON files."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -828,6 +880,9 @@ def build_and_write_outputs(
         for s_id, _ in trip["stops"]:
             referenced_stop_ids.add(s_id)
 
+    if allow_network_enrichment:
+        enrich_cross_border_stops_from_naptan(stops_map, referenced_stop_ids)
+
     cross_border_added = 0
     for s_id in referenced_stop_ids:
         if s_id not in stops_map and s_id in fallback_stops:
@@ -843,7 +898,7 @@ def build_and_write_outputs(
             cross_border_added += 1
 
     if cross_border_added:
-        log(f"Added {cross_border_added} cross-border stops from TXC stop annotations")
+        log(f"Added {cross_border_added} remaining stops from TXC stop annotations")
 
     routes_index: list[dict[str, Any]] = []
     total_trips_exported = 0
@@ -1071,6 +1126,7 @@ def main(argv: list[str] | None = None) -> int:
         all_trips=all_trips,
         fallback_stops=fallback_stops,
         source_label="live",
+        allow_network_enrichment=(args.local_naptan is None),
     )
     return 0
 

@@ -15,23 +15,23 @@ import ingest  # noqa: E402
 
 
 SAMPLE_NAPTAN_CSV = """\ufeffATCOCode,CommonName,LocalityName,Indicator,Latitude,Longitude,Status,StopType
-670000101,Whitesands,Dumfries,Stand 3,55.069123,-3.613456,active,BCS
-670000102,DGRI Main Entrance,Dumfries,outside,55.061901,-3.643102,,BCT
-670000201,High Street,Annan,opp Bank of Scotland,54.987111,-3.259822,active,BCT
-670000999,Old Closed Stop,Annan,adj,54.986000,-3.258000,inactive,BCT
-670000888,Dumfries Rail Station,Dumfries,,55.074800,-3.606100,active,RLY
+680000101,Whitesands,Dumfries,Stand 3,55.069123,-3.613456,active,BCS
+680000102,DGRI Main Entrance,Dumfries,outside,55.061901,-3.643102,,BCT
+680000201,High Street,Annan,opp Bank of Scotland,54.987111,-3.259822,active,BCT
+680000999,Old Closed Stop,Annan,adj,54.986000,-3.258000,inactive,BCT
+680000888,Dumfries Rail Station,Dumfries,,55.074800,-3.606100,active,RLY
 """
 
 TXC_21_XML = b"""<?xml version="1.0" encoding="utf-8"?>
 <TransXChange xmlns="http://www.transxchange.org.uk/" SchemaVersion="2.1">
   <StopPoints>
     <AnnotatedStopPointRef>
-      <StopPointRef>670000101</StopPointRef>
+      <StopPointRef>680000101</StopPointRef>
       <CommonName>Whitesands</CommonName>
       <LocalityName>Dumfries</LocalityName>
     </AnnotatedStopPointRef>
     <AnnotatedStopPointRef>
-      <StopPointRef>670000201</StopPointRef>
+      <StopPointRef>680000201</StopPointRef>
       <CommonName>High Street</CommonName>
       <LocalityName>Annan</LocalityName>
     </AnnotatedStopPointRef>
@@ -48,9 +48,9 @@ TXC_21_XML = b"""<?xml version="1.0" encoding="utf-8"?>
   <JourneyPatternSections>
     <JourneyPatternSection id="JPS1">
       <JourneyPatternTimingLink id="TL1">
-        <From><StopPointRef>670000101</StopPointRef></From>
+        <From><StopPointRef>680000101</StopPointRef></From>
         <To>
-          <StopPointRef>670000201</StopPointRef>
+          <StopPointRef>680000201</StopPointRef>
           <WaitTime>PT2M</WaitTime>
         </To>
         <RunTime>PT35M</RunTime>
@@ -58,7 +58,7 @@ TXC_21_XML = b"""<?xml version="1.0" encoding="utf-8"?>
     </JourneyPatternSection>
     <JourneyPatternSection id="JPS2">
       <JourneyPatternTimingLink id="TL2">
-        <From><StopPointRef>670000201</StopPointRef></From>
+        <From><StopPointRef>680000201</StopPointRef></From>
         <To><StopPointRef>090012345</StopPointRef></To>
         <RunTime>PT1H5M30S</RunTime>
       </JourneyPatternTimingLink>
@@ -136,8 +136,8 @@ TXC_24_NON_DG_XML = b"""<?xml version="1.0" encoding="utf-8"?>
 <txc:TransXChange xmlns:txc="http://www.transxchange.org.uk/v2.4" SchemaVersion="2.4">
   <txc:StopPoints>
     <txc:AnnotatedStopPointRef>
-      <txc:StopPointRef>609000123</txc:StopPointRef>
-      <txc:CommonName>Buchanan Bus Station</txc:CommonName>
+      <txc:StopPointRef>670000123</txc:StopPointRef>
+      <txc:CommonName>Inverness Bus Station</txc:CommonName>
     </txc:AnnotatedStopPointRef>
   </txc:StopPoints>
 </txc:TransXChange>
@@ -148,8 +148,8 @@ TXC_24_DG_XML = b"""<?xml version="1.0" encoding="utf-8"?>
   <txc:JourneyPatternSections>
     <txc:JourneyPatternSection id="SEC_IN">
       <txc:JourneyPatternTimingLink id="TL_A">
-        <txc:From><txc:StopPointRef>670000102</txc:StopPointRef></txc:From>
-        <txc:To><txc:StopPointRef>670000101</txc:StopPointRef></txc:To>
+        <txc:From><txc:StopPointRef>680000102</txc:StopPointRef></txc:From>
+        <txc:To><txc:StopPointRef>680000101</txc:StopPointRef></txc:To>
         <txc:RunTime>PT12M</txc:RunTime>
       </txc:JourneyPatternTimingLink>
     </txc:JourneyPatternSection>
@@ -209,10 +209,10 @@ class TestIngestPipeline(unittest.TestCase):
 
     def test_naptan_csv_parsing(self) -> None:
         stops = ingest.parse_naptan_stops(SAMPLE_NAPTAN_CSV.encode("utf-8"))
-        self.assertEqual(set(stops.keys()), {"670000101", "670000102", "670000201"})
-        self.assertEqual(stops["670000101"]["lat"], 55.06912)
-        self.assertEqual(stops["670000101"]["indicator"], "Stand 3")
-        self.assertEqual(stops["670000102"]["name"], "DGRI Main Entrance")
+        self.assertEqual(set(stops.keys()), {"680000101", "680000102", "680000201"})
+        self.assertEqual(stops["680000101"]["lat"], 55.06912)
+        self.assertEqual(stops["680000101"]["indicator"], "Stand 3")
+        self.assertEqual(stops["680000102"]["name"], "DGRI Main Entrance")
 
     def test_txc_21_timing_inheritance_and_school_flags(self) -> None:
         parsed = ingest.parse_txc_xml(TXC_21_XML, reference_date="2026-11-20")
@@ -232,8 +232,8 @@ class TestIngestPipeline(unittest.TestCase):
         self.assertEqual(
             t1["stops"],
             [
-                ["670000101", "08:10"],
-                ["670000201", "08:45"],
+                ["680000101", "08:10"],
+                ["680000201", "08:45"],
                 ["090012345", "09:52"],
             ],
         )
@@ -244,13 +244,14 @@ class TestIngestPipeline(unittest.TestCase):
         self.assertEqual(
             t2["stops"],
             [
-                ["670000101", "15:20"],
-                ["670000201", "16:00"],
+                ["680000101", "15:20"],
+                ["680000201", "16:00"],
                 ["090012345", "17:07"],
             ],
         )
 
     def test_txc_24_namespaces_and_non_dg_filtering(self) -> None:
+        # Highland (670*) must be excluded
         self.assertIsNone(ingest.parse_txc_xml(TXC_24_NON_DG_XML))
 
         parsed = ingest.parse_txc_xml(TXC_24_DG_XML)
@@ -262,7 +263,7 @@ class TestIngestPipeline(unittest.TestCase):
         self.assertEqual(trip["direction"], "inbound")
         self.assertEqual(trip["days"], ["Sat", "Sun"])
         self.assertTrue(trip["nonSchoolOnly"])
-        self.assertEqual(trip["stops"], [["670000102", "09:05"], ["670000101", "09:17"]])
+        self.assertEqual(trip["stops"], [["680000102", "09:05"], ["680000101", "09:17"]])
 
     def test_end_to_end_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
