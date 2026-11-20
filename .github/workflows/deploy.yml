@@ -1,0 +1,68 @@
+name: Nightly Data Sync & Deploy to GitHub Pages
+
+on:
+  schedule:
+    # Run daily at 03:30 UTC (after Traveline TNDS overnight refresh)
+    - cron: '30 3 * * *'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run ETL unit tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Fetch live NaPTAN stops & Traveline TNDS timetables
+        env:
+          TNDS_FTP_USER: ${{ secrets.TNDS_FTP_USER }}
+          TNDS_FTP_PASS: ${{ secrets.TNDS_FTP_PASS }}
+        run: python3 scripts/ingest.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
