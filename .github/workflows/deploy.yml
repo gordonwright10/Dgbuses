@@ -8,6 +8,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      force_refresh:
+        description: 'Force fresh download of NaPTAN + Traveline TNDS S.zip'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -37,7 +42,20 @@ jobs:
       - name: Run ETL unit tests
         run: python3 -m unittest discover -s tests -v
 
+      - name: Compute UTC date cache key
+        id: date
+        run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore today's live timetable data cache
+        id: data-cache
+        if: github.event_name == 'push'
+        uses: actions/cache@v4
+        with:
+          path: public/data
+          key: tnds-680-v1-${{ steps.date.outputs.day }}-${{ hashFiles('scripts/ingest.py') }}
+
       - name: Fetch live NaPTAN stops & Traveline TNDS timetables
+        if: steps.data-cache.outputs.cache-hit != 'true' || github.event_name == 'schedule' || inputs.force_refresh == true
         env:
           TNDS_FTP_USER: ${{ secrets.TNDS_FTP_USER }}
           TNDS_FTP_PASS: ${{ secrets.TNDS_FTP_PASS }}
