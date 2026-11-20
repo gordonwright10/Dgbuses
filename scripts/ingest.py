@@ -19,8 +19,10 @@ import io
 import json
 import os
 import re
+import socket
 import sys
 import tempfile
+import time
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
@@ -270,18 +272,83 @@ def parse_naptan_stops(csv_bytes: bytes) -> dict[str, dict[str, Any]]:
     return stops
 
 
-def download_tnds_zip(dest_path: Path, user: str, password: str) -> Path:
-    """Download Traveline TNDS S.zip using FTP passive mode."""
-    log(f"Connecting to TNDS FTP ({TNDS_FTP_HOST}) in passive mode...")
-    with ftplib.FTP(TNDS_FTP_HOST, timeout=120) as ftp:
-        ftp.login(user=user, passwd=password)
-        ftp.set_pasv(True)
-        log(f"Downloading {TNDS_ZIP_NAME} -> {dest_path}")
-        with open(dest_path, "wb") as out_f:
-            ftp.retrbinary(f"RETR {TNDS_ZIP_NAME}", out_f.write, blocksize=65536)
-    size_mb = dest_path.stat().st_size / (1024 * 1024)
-    log(f"Downloaded {TNDS_ZIP_NAME} ({size_mb:.1f} MB)")
-    return dest_path
+def _enable_tcp_keepalive(sock: socket.socket | None) -> None:
+    """Keep the FTP control socket alive across NAT firewalls during long transfers."""
+    if sock is None:
+        return
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        if hasattr(socket, "TCP_KEEPIDLE"):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
+        if hasattr(socket, "TCP_KEEPINTVL"):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 15)
+        if hasattr(socket, "TCP_KEEPCNT"):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 4)
+    except OSError:
+        pass
+
+
+def _is_valid_tnds_zip(path: Path) -> bool:
+    if not path.exists() or path.stat().st_size < 1_000_000:
+        return False
+    try:
+        with zipfile.ZipFile(path, "r") as zf:
+            xml_count = sum(1 for n in zf.namelist() if n.lower().endswith(".xml"))
+            return xml_count > 100
+    except zipfile.BadZipFile:
+        return False
+
+
+def download_tnds_zip(dest_path: Path, user: str, password: str, max_attempts: int = 3) -> Path:
+    """Download Traveline TNDS S.zip using FTP passive mode with keepalives and retry."""
+    last_error: Exception | None = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            log(
+                f"Connecting to TNDS FTP ({TNDS_FTP_HOST}) in passive mode "
+                f"(attempt {attempt}/{max_attempts})..."
+            )
+            ftp = ftplib.FTP(TNDS_FTP_HOST, timeout=180)
+            try:
+                _enable_tcp_keepalive(ftp.sock)
+                ftp.login(user=user, passwd=password)
+                ftp.set_pasv(True)
+                log(f"Downloading {TNDS_ZIP_NAME} -> {dest_path}")
+                with open(dest_path, "wb") as out_f:
+                    try:
+                        ftp.retrbinary(f"RETR {TNDS_ZIP_NAME}", out_f.write, blocksize=65536)
+                    except (TimeoutError, OSError, EOFError, ftplib.error_temp) as exc:
+                        # Control socket can time out in voidresp() after the data channel already finished.
+                        out_f.flush()
+                        if _is_valid_tnds_zip(dest_path):
+                            log(
+                                f"Notice: FTP control channel timed out after transfer ({exc}), "
+                                "but downloaded S.zip verified intact — continuing."
+                            )
+                        else:
+                            raise
+            finally:
+                try:
+                    ftp.close()
+                except Exception:
+                    pass
+
+            if not _is_valid_tnds_zip(dest_path):
+                raise RuntimeError("Downloaded S.zip failed zip integrity verification")
+
+            size_mb = dest_path.stat().st_size / (1024 * 1024)
+            log(f"Downloaded {TNDS_ZIP_NAME} ({size_mb:.1f} MB)")
+            return dest_path
+        except Exception as exc:
+            last_error = exc
+            log(f"Warning: TNDS FTP download attempt {attempt}/{max_attempts} failed: {exc}")
+            if dest_path.exists():
+                dest_path.unlink(missing_ok=True)
+            if attempt < max_attempts:
+                time.sleep(5 * attempt)
+
+    raise RuntimeError(f"Failed to download {TNDS_ZIP_NAME} after {max_attempts} attempts: {last_error}")
 
 
 def humanize_bank_holidays(op_elem: ET.Element | None) -> str | None:
