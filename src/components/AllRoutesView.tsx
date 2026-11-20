@@ -16,6 +16,7 @@ import {
   formatDaysPlainEnglish,
   formatDuration,
   formatIndicator,
+  formatStopDisplayName,
   getTodayDayCode,
   parseTimeToMinutes,
 } from '../lib/transit'
@@ -93,10 +94,13 @@ export function AllRoutesView({
       ) {
         return true
       }
-      // Also match any town served by this route
+      // Also match any town, stop, or street served by this route
       return r.stopIds.some((id) => {
         const s = stopMap.get(id)
-        return s ? `${s.locality} ${s.name}`.toLowerCase().includes(q) : false
+        if (!s) return false
+        return `${s.locality} ${formatStopDisplayName(s)} ${s.name} ${s.street ?? ''}`
+          .toLowerCase()
+          .includes(q)
       })
     })
   }, [routes, query, stopMap])
@@ -138,16 +142,16 @@ export function AllRoutesView({
         <button
           type="button"
           onClick={() => onSelectRoute(null)}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#CBD7D1] bg-white px-4 py-2 text-sm font-bold text-[#18314F] transition-colors hover:bg-[#F0F4F2]"
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#00838f] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#006B75]"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           <span>Back to all routes</span>
         </button>
 
-        <section className="rounded-3xl border border-[#D4DFD9] bg-white p-5 shadow-xs sm:p-6">
+        <section className="rounded-3xl border border-[#D4DFDF] bg-white p-5 shadow-xs sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-start gap-3.5">
-              <span className="flex min-h-14 min-w-16 items-center justify-center rounded-2xl bg-[#18314F] px-3.5 text-2xl font-extrabold text-white tabular-nums">
+              <span className="flex min-h-14 min-w-16 items-center justify-center rounded-2xl bg-[#95398d] px-3.5 text-2xl font-extrabold text-white tabular-nums">
                 {selectedRoute.lineName}
               </span>
               <div>
@@ -169,20 +173,20 @@ export function AllRoutesView({
               type="button"
               onClick={() => setShowMap((v) => !v)}
               aria-expanded={showMap}
-              className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-colors ${
+              className={`inline-flex min-h-11 items-center gap-2 rounded-xl border-2 px-4 py-2 text-sm font-bold transition-colors ${
                 showMap
-                  ? 'border-[#0F5C4A] bg-[#E8F4EF] text-[#0A4638]'
-                  : 'border-[#CBD7D1] bg-white text-[#18314F] hover:bg-[#F2F6F4]'
+                  ? 'border-[#00838f] bg-[#00838f] text-white'
+                  : 'border-[#00838f] bg-white text-[#006B75] hover:bg-[#E4F4F6]'
               }`}
             >
-              <MapIcon className="h-4 w-4 text-[#0F5C4A]" aria-hidden="true" />
+              <MapIcon className="h-4 w-4" aria-hidden="true" />
               <span>{showMap ? 'Hide route map' : 'Show route map'}</span>
             </button>
           </div>
 
           {loading ? (
             <div className="mt-6 flex items-center justify-center gap-3 py-10 text-sm font-semibold text-[#455952]">
-              <Loader2 className="h-5 w-5 animate-spin text-[#0F5C4A]" aria-hidden="true" />
+              <Loader2 className="h-5 w-5 animate-spin text-[#00838f]" aria-hidden="true" />
               <span>Loading timetable…</span>
             </div>
           ) : schedule ? (
@@ -195,7 +199,7 @@ export function AllRoutesView({
               )}
 
               {/* Direction + Day Filter */}
-              <div className="flex flex-col gap-3 border-t border-[#E8EFEA] pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 border-t border-[#E8EFEF] pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="grid grid-cols-2 gap-2 sm:flex">
                   {schedule.outbound.length > 0 && (
                     <button
@@ -207,8 +211,8 @@ export function AllRoutesView({
                       aria-pressed={direction === 'outbound'}
                       className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
                         direction === 'outbound'
-                          ? 'bg-[#0F5C4A] text-white'
-                          : 'bg-[#F0F4F2] text-[#1D3029] hover:bg-[#E2EBE6]'
+                          ? 'bg-[#00838f] text-white'
+                          : 'bg-[#EEF4F5] text-[#1D3538] hover:bg-[#DDF0F2]'
                       }`}
                     >
                       {schedule.outboundLabel}
@@ -224,8 +228,8 @@ export function AllRoutesView({
                       aria-pressed={direction === 'inbound'}
                       className={`min-h-11 rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
                         direction === 'inbound'
-                          ? 'bg-[#0F5C4A] text-white'
-                          : 'bg-[#F0F4F2] text-[#1D3029] hover:bg-[#E2EBE6]'
+                          ? 'bg-[#00838f] text-white'
+                          : 'bg-[#EEF4F5] text-[#1D3538] hover:bg-[#DDF0F2]'
                       }`}
                     >
                       {schedule.inboundLabel}
@@ -241,7 +245,7 @@ export function AllRoutesView({
                     id="route-day-filter"
                     value={dayFilter}
                     onChange={(e) => setDayFilter(e.target.value as DayCode | 'ALL')}
-                    className="min-h-11 rounded-xl border border-[#CBD7D1] bg-white px-3 py-2 text-sm font-bold text-[#111C18]"
+                    className="min-h-11 rounded-xl border border-[#CBD7D8] bg-white px-3 py-2 text-sm font-bold text-[#111C18]"
                   >
                     <option value="ALL">All days of week</option>
                     {DAY_CODES.map((d) => (
@@ -255,7 +259,7 @@ export function AllRoutesView({
 
               {/* Plain-English Trip List */}
               {activeTrips.length === 0 ? (
-                <div className="rounded-2xl bg-[#F6F9F7] p-6 text-center">
+                <div className="rounded-2xl bg-[#F6F9F9] p-6 text-center">
                   <p className="text-sm font-bold text-[#111C18]">
                     No departures in this direction on {dayFilter === 'ALL' ? 'any day' : DAY_FULL_NAMES[dayFilter]}.
                   </p>
@@ -263,7 +267,7 @@ export function AllRoutesView({
                     <button
                       type="button"
                       onClick={() => setDayFilter('ALL')}
-                      className="mt-3 min-h-10 rounded-xl bg-[#0F5C4A] px-4 py-2 text-sm font-bold text-white hover:bg-[#0A4638]"
+                      className="mt-3 min-h-10 rounded-xl bg-[#00838f] px-4 py-2 text-sm font-bold text-white hover:bg-[#006B75]"
                     >
                       Show all days
                     </button>
@@ -281,32 +285,33 @@ export function AllRoutesView({
                     return (
                       <div
                         key={trip.id}
-                        className="overflow-hidden rounded-2xl border border-[#DCE4DF] bg-[#FAFCFB]"
+                        className="overflow-hidden rounded-2xl border border-[#DCE4E4] bg-[#FAFCFC]"
                       >
                         <button
                           type="button"
                           onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}
                           aria-expanded={isExpanded}
-                          className="flex min-h-15 w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[#F0F5F3]"
+                          className="flex min-h-15 w-full flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[#EEF6F7]"
                         >
                           <div className="flex items-center gap-3">
                             <span className="text-lg font-extrabold text-[#111C18] tabular-nums">
                               {trip.dep}
                             </span>
-                            <ArrowRight className="h-4 w-4 text-[#5D726A]" aria-hidden="true" />
+                            <ArrowRight className="h-4 w-4 text-[#5D7274]" aria-hidden="true" />
                             <span className="text-lg font-extrabold text-[#111C18] tabular-nums">
                               {trip.arr}
                             </span>
-                            <span className="rounded-lg bg-white px-2 py-0.5 text-xs font-bold text-[#384D46] ring-1 ring-[#DCE4DF] tabular-nums">
+                            <span className="rounded-lg bg-white px-2 py-0.5 text-xs font-bold text-[#005A63] ring-1 ring-[#D4E4E6] tabular-nums">
                               {formatDuration(dur)}
                             </span>
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs font-semibold text-[#455952]">
-                              {firstStop?.name ?? trip.stops[0][0]} → {lastStop?.name ?? trip.stops[trip.stops.length - 1][0]}
+                              {firstStop ? formatStopDisplayName(firstStop) : trip.stops[0][0]} →{' '}
+                              {lastStop ? formatStopDisplayName(lastStop) : trip.stops[trip.stops.length - 1][0]}
                             </span>
-                            <span className="rounded-md bg-[#EBF1EE] px-2 py-0.5 text-xs font-bold text-[#273B34]">
+                            <span className="rounded-md bg-[#EBF2F3] px-2 py-0.5 text-xs font-bold text-[#273B3C]">
                               {formatDaysPlainEnglish(trip.days)}
                             </span>
                             {trip.schoolOnly && (
@@ -322,7 +327,7 @@ export function AllRoutesView({
                               </span>
                             )}
                             {isExpanded ? (
-                              <ChevronUp className="h-4 w-4 text-[#0F5C4A]" aria-hidden="true" />
+                              <ChevronUp className="h-4 w-4 text-[#00838f]" aria-hidden="true" />
                             ) : (
                               <ChevronDown className="h-4 w-4 text-[#455952]" aria-hidden="true" />
                             )}
@@ -330,7 +335,7 @@ export function AllRoutesView({
                         </button>
 
                         {isExpanded && (
-                          <div className="border-t border-[#E2EAE5] bg-white px-4 py-4">
+                          <div className="border-t border-[#E2EAEA] bg-white px-4 py-4">
                             {trip.bankHolidays && (
                               <p className="mb-3 inline-flex items-center gap-1.5 rounded-lg bg-[#FFF7ED] px-2.5 py-1 text-xs font-semibold text-[#9A3412]">
                                 <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
@@ -343,11 +348,11 @@ export function AllRoutesView({
                                 const ind = s ? formatIndicator(s.indicator) : ''
                                 return (
                                   <li key={`${stopId}-${idx}`} className="flex items-baseline gap-3 text-sm">
-                                    <span className="w-12 shrink-0 font-bold text-[#0F5C4A] tabular-nums">
+                                    <span className="w-12 shrink-0 font-bold text-[#006B75] tabular-nums">
                                       {time}
                                     </span>
                                     <span className="font-semibold text-[#111C18]">
-                                      {s?.name ?? stopId}
+                                      {s ? formatStopDisplayName(s) : stopId}
                                       {s?.locality ? (
                                         <span className="font-normal text-[#546860]">
                                           {' '}
@@ -376,12 +381,12 @@ export function AllRoutesView({
 
   return (
     <div className="space-y-5">
-      <section className="rounded-3xl border border-[#D4DFD9] bg-white p-5 shadow-xs sm:p-6">
+      <section className="rounded-3xl border border-[#D4DFDF] bg-white p-5 shadow-xs sm:p-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-[#111C18]">
           All Dumfries &amp; Galloway Bus Routes
         </h1>
         <p className="mt-1 text-sm font-medium text-[#455952]">
-          Browse routes by number, town, or bus company. Tap any route to view its simple timetable and map.
+          Browse routes by number, town, street, or bus company. Tap any route to view its simple timetable and map.
         </p>
 
         <div className="relative mt-4">
@@ -397,8 +402,8 @@ export function AllRoutesView({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter by route number (e.g. 79, X74, 501) or town (e.g. Moffat, Stranraer)…"
-            className="min-h-12 w-full rounded-xl border-2 border-[#CED9D3] bg-white pl-11 pr-4 py-2.5 text-base font-medium text-[#111C18] placeholder:text-[#667871] focus:border-[#0F5C4A] focus:outline-none"
+            placeholder="Filter by route number (e.g. 79, X74, 501) or place (e.g. Moffat, Whitesands, DGRI)…"
+            className="min-h-12 w-full rounded-xl border-2 border-[#CED9D9] bg-white pl-11 pr-4 py-2.5 text-base font-medium text-[#111C18] placeholder:text-[#667871] focus:border-[#00838f] focus:outline-none"
           />
         </div>
       </section>
@@ -409,9 +414,9 @@ export function AllRoutesView({
             key={route.id}
             type="button"
             onClick={() => onSelectRoute(route.id)}
-            className="group flex items-start gap-3.5 rounded-2xl border border-[#DCE4DF] bg-white p-4 text-left transition-all hover:border-[#0F5C4A] hover:shadow-sm"
+            className="group flex items-start gap-3.5 rounded-2xl border border-[#DCE4E4] bg-white p-4 text-left transition-all hover:border-[#00838f] hover:shadow-sm"
           >
-            <span className="flex min-h-12 min-w-14 shrink-0 items-center justify-center rounded-xl bg-[#18314F] px-2.5 text-lg font-extrabold text-white tabular-nums transition-colors group-hover:bg-[#0F5C4A]">
+            <span className="flex min-h-12 min-w-14 shrink-0 items-center justify-center rounded-xl bg-[#95398d] px-2.5 text-lg font-extrabold text-white tabular-nums transition-colors group-hover:bg-[#00838f]">
               {route.lineName}
             </span>
             <div className="min-w-0 flex-1">
@@ -422,16 +427,16 @@ export function AllRoutesView({
                     : route.description || `Route ${route.lineName}`}
                 </h2>
                 <ArrowRight
-                  className="h-4 w-4 shrink-0 text-[#667871] transition-transform group-hover:translate-x-0.5 group-hover:text-[#0F5C4A]"
+                  className="h-4 w-4 shrink-0 text-[#667871] transition-transform group-hover:translate-x-0.5 group-hover:text-[#00838f]"
                   aria-hidden="true"
                 />
               </div>
               <p className="mt-0.5 truncate text-xs font-semibold text-[#455952]">{route.operator}</p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[#384D46]">
-                <span className="rounded-md bg-[#EFF5F2] px-2 py-0.5">
+                <span className="rounded-md bg-[#E4F4F6] px-2 py-0.5 text-[#005A63]">
                   {formatDaysPlainEnglish(route.days)}
                 </span>
-                <span className="rounded-md bg-[#F4F6F5] px-2 py-0.5 tabular-nums">
+                <span className="rounded-md bg-[#F4F6F6] px-2 py-0.5 tabular-nums">
                   {route.stopIds.length} stops
                 </span>
               </div>
@@ -441,7 +446,7 @@ export function AllRoutesView({
       </div>
 
       {filteredRoutes.length === 0 && (
-        <div className="rounded-2xl border border-[#DCE4DF] bg-white p-8 text-center text-sm font-medium text-[#455952]">
+        <div className="rounded-2xl border border-[#DCE4E4] bg-white p-8 text-center text-sm font-medium text-[#455952]">
           No bus routes matched <strong className="text-[#111C18]">“{query}”</strong>.
         </div>
       )}

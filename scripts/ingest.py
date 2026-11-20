@@ -240,8 +240,15 @@ def parse_naptan_stops(csv_bytes: bytes) -> dict[str, dict[str, Any]]:
         name = get_col(row, "CommonName") or atco
         locality = get_col(row, "LocalityName", "ParentLocalityName", "Town", "Suburb")
         indicator = clean_indicator(get_col(row, "Indicator"))
+        street = get_col(row, "Street")
+        landmark = get_col(row, "Landmark")
 
-        stops[atco] = {
+        if street.lower() in {"-", "---", "not available", "n/a", "none", "null"}:
+            street = ""
+        if landmark.lower() in {"-", "---", "not available", "n/a", "none", "null"}:
+            landmark = ""
+
+        stop_entry: dict[str, Any] = {
             "atcoCode": atco,
             "name": name,
             "locality": locality,
@@ -249,6 +256,12 @@ def parse_naptan_stops(csv_bytes: bytes) -> dict[str, dict[str, Any]]:
             "lat": lat,
             "lng": lng,
         }
+        if street and street.lower() != name.lower():
+            stop_entry["street"] = street
+        if landmark and landmark.lower() not in {name.lower(), street.lower()}:
+            stop_entry["landmark"] = landmark
+
+        stops[atco] = stop_entry
 
     log(
         f"Parsed NaPTAN: {total_rows} rows -> {len(stops)} active bus stops "

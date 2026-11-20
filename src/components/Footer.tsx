@@ -29,7 +29,7 @@ export function Footer({ metadata }: FooterProps) {
               {isSample ? (
                 <Info className="h-4 w-4 shrink-0 text-[#B45309]" aria-hidden="true" />
               ) : (
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-[#0F5C4A]" aria-hidden="true" />
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-[#00838f]" aria-hidden="true" />
               )}
               <span>
                 {isSample

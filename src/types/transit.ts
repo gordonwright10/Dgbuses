@@ -17,6 +17,8 @@ export interface BusStop {
   name: string
   locality: string
   indicator: string
+  street?: string
+  landmark?: string
   lat: number | null
   lng: number | null
 }

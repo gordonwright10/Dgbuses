@@ -304,7 +304,7 @@ export function JourneyPlannerView({
             onChange={onChangeFrom}
             localities={localities}
             stopOptions={stopOptions}
-            accentDotClass="bg-[#0F5C4A] ring-[#0F5C4A]/20"
+            accentDotClass="bg-[#00838f] ring-[#00838f]/20"
             onUseNearMe={handleUseNearestStop}
             nearMeLoading={nearMeLoading}
           />
@@ -315,7 +315,7 @@ export function JourneyPlannerView({
               onClick={handleSwap}
               aria-label="Swap From and To places"
               title="Swap From and To"
-              className="inline-flex h-12 w-12 items-center justify-center rounded-xl border-2 border-[#CED9D3] bg-[#F7FAF8] text-[#18314F] transition-colors hover:border-[#0F5C4A] hover:bg-[#E7F3EE] hover:text-[#0F5C4A]"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#00838f] text-white shadow-xs transition-colors hover:bg-[#006B75]"
             >
               <ArrowLeftRight className="h-5 w-5 rotate-90 md:rotate-0" aria-hidden="true" />
             </button>
@@ -329,19 +329,19 @@ export function JourneyPlannerView({
             onChange={onChangeTo}
             localities={localities}
             stopOptions={stopOptions}
-            accentDotClass="bg-[#18314F] ring-[#18314F]/20"
+            accentDotClass="bg-[#95398d] ring-[#95398d]/20"
           />
         </div>
 
         {geoMessage && (
-          <p role="status" className="mt-2.5 flex items-center gap-2 rounded-xl bg-[#F0F5F3] px-3 py-2 text-xs font-semibold text-[#2E423B]">
-            <Info className="h-4 w-4 shrink-0 text-[#0F5C4A]" aria-hidden="true" />
+          <p role="status" className="mt-2.5 flex items-center gap-2 rounded-xl bg-[#EEF6F7] px-3 py-2 text-xs font-semibold text-[#1D3B3F]">
+            <Info className="h-4 w-4 shrink-0 text-[#00838f]" aria-hidden="true" />
             <span>{geoMessage}</span>
           </p>
         )}
 
         {/* Day & Time Controls */}
-        <div className="mt-5 space-y-4 border-t border-[#E8EFEA] pt-5">
+        <div className="mt-5 space-y-4 border-t border-[#E8EFEF] pt-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Travel day">
               <span className="mr-1 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#455952]">
@@ -357,8 +357,8 @@ export function JourneyPlannerView({
                 aria-pressed={selectedDay === todayCode}
                 className={`min-h-10 rounded-xl px-3.5 py-1.5 text-sm font-bold transition-colors ${
                   selectedDay === todayCode
-                    ? 'bg-[#0F5C4A] text-white'
-                    : 'bg-[#F0F4F2] text-[#22352E] hover:bg-[#E3ECE7]'
+                    ? 'bg-[#00838f] text-white'
+                    : 'bg-[#EEF4F5] text-[#1D3538] hover:bg-[#DDF0F2]'
                 }`}
               >
                 Today ({todayCode})
@@ -369,8 +369,8 @@ export function JourneyPlannerView({
                 aria-pressed={selectedDay === tomorrowCode && tomorrowCode !== todayCode}
                 className={`min-h-10 rounded-xl px-3.5 py-1.5 text-sm font-bold transition-colors ${
                   selectedDay === tomorrowCode
-                    ? 'bg-[#0F5C4A] text-white'
-                    : 'bg-[#F0F4F2] text-[#22352E] hover:bg-[#E3ECE7]'
+                    ? 'bg-[#00838f] text-white'
+                    : 'bg-[#EEF4F5] text-[#1D3538] hover:bg-[#DDF0F2]'
                 }`}
               >
                 Tomorrow ({tomorrowCode})
@@ -383,7 +383,7 @@ export function JourneyPlannerView({
                 id="day-select"
                 value={selectedDay}
                 onChange={(e) => setSelectedDay(e.target.value as DayCode)}
-                className="min-h-10 rounded-xl border border-[#CBD7D1] bg-white px-3 py-1.5 text-sm font-bold text-[#1A2B24] hover:border-[#0F5C4A]"
+                className="min-h-10 rounded-xl border border-[#CBD7D8] bg-white px-3 py-1.5 text-sm font-bold text-[#1A2B24] hover:border-[#00838f]"
               >
                 {DAY_CODES.map((code) => (
                   <option key={code} value={code}>
@@ -405,8 +405,8 @@ export function JourneyPlannerView({
                   aria-pressed={effectiveTimeMode === 'now'}
                   className={`min-h-10 rounded-xl px-3 py-1.5 text-sm font-bold transition-colors ${
                     effectiveTimeMode === 'now'
-                      ? 'bg-[#18314F] text-white'
-                      : 'bg-[#F0F4F2] text-[#22352E] hover:bg-[#E3ECE7]'
+                      ? 'bg-[#00838f] text-white'
+                      : 'bg-[#EEF4F5] text-[#1D3538] hover:bg-[#DDF0F2]'
                   }`}
                 >
                   Next buses
@@ -418,8 +418,8 @@ export function JourneyPlannerView({
                 aria-pressed={effectiveTimeMode === 'all'}
                 className={`min-h-10 rounded-xl px-3 py-1.5 text-sm font-bold transition-colors ${
                   effectiveTimeMode === 'all'
-                    ? 'bg-[#18314F] text-white'
-                    : 'bg-[#F0F4F2] text-[#22352E] hover:bg-[#E3ECE7]'
+                    ? 'bg-[#00838f] text-white'
+                    : 'bg-[#EEF4F5] text-[#1D3538] hover:bg-[#DDF0F2]'
                 }`}
               >
                 All day
@@ -430,8 +430,8 @@ export function JourneyPlannerView({
                 aria-pressed={effectiveTimeMode === 'after'}
                 className={`min-h-10 rounded-xl px-3 py-1.5 text-sm font-bold transition-colors ${
                   effectiveTimeMode === 'after'
-                    ? 'bg-[#18314F] text-white'
-                    : 'bg-[#F0F4F2] text-[#22352E] hover:bg-[#E3ECE7]'
+                    ? 'bg-[#00838f] text-white'
+                    : 'bg-[#EEF4F5] text-[#1D3538] hover:bg-[#DDF0F2]'
                 }`}
               >
                 Leave after
@@ -446,7 +446,7 @@ export function JourneyPlannerView({
                     type="time"
                     value={afterTime}
                     onChange={(e) => setAfterTime(e.target.value)}
-                    className="min-h-10 rounded-xl border border-[#CBD7D1] bg-white px-2.5 py-1.5 text-sm font-bold text-[#111C18] tabular-nums"
+                    className="min-h-10 rounded-xl border border-[#CBD7D8] bg-white px-2.5 py-1.5 text-sm font-bold text-[#111C18] tabular-nums"
                   />
                 </>
               )}
@@ -454,12 +454,12 @@ export function JourneyPlannerView({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="inline-flex min-h-10 cursor-pointer items-center gap-2.5 rounded-xl bg-[#F7FAF8] px-3 py-1.5 text-sm font-semibold text-[#233730] select-none hover:bg-[#EDF3F0]">
+            <label className="inline-flex min-h-10 cursor-pointer items-center gap-2.5 rounded-xl bg-[#F5F9FA] px-3 py-1.5 text-sm font-semibold text-[#233738] select-none hover:bg-[#E7F2F4]">
               <input
                 type="checkbox"
                 checked={hideSchoolOnly}
                 onChange={(e) => setHideSchoolOnly(e.target.checked)}
-                className="h-4 w-4 rounded border-[#9CB0A7] accent-[#0F5C4A]"
+                className="h-4 w-4 rounded border-[#9CB0B3] accent-[#00838f]"
               />
               <GraduationCap className="h-4 w-4 text-[#92400E]" aria-hidden="true" />
               <span>Hide school-day-only buses</span>
@@ -470,9 +470,9 @@ export function JourneyPlannerView({
 
       {/* Popular Journeys (when user hasn't picked both places yet) */}
       {!hasSearch && resolvedQuickPairs.length > 0 && (
-        <section aria-labelledby="popular-heading" className="rounded-2xl border border-[#DCE4DF] bg-white p-5">
+        <section aria-labelledby="popular-heading" className="rounded-2xl border border-[#DCE4E4] bg-white p-5">
           <div className="mb-3 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[#0F5C4A]" aria-hidden="true" />
+            <Sparkles className="h-4 w-4 text-[#95398d]" aria-hidden="true" />
             <h2 id="popular-heading" className="text-sm font-bold uppercase tracking-wider text-[#455952]">
               Popular journeys to try
             </h2>
@@ -487,10 +487,10 @@ export function JourneyPlannerView({
                   onChangeTo(pair.to)
                   setTimeMode('all')
                 }}
-                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#CBD7D1] bg-[#F8FAF9] px-4 py-2 text-sm font-bold text-[#172922] transition-colors hover:border-[#0F5C4A] hover:bg-[#E7F3EE] hover:text-[#0A4638]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#00838f] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#006B75]"
               >
                 <span>{pair.label}</span>
-                <ArrowRight className="h-3.5 w-3.5 text-[#0F5C4A]" aria-hidden="true" />
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             ))}
           </div>
@@ -516,7 +516,7 @@ export function JourneyPlannerView({
               <button
                 type="button"
                 onClick={() => setShowEarlierKey(showEarlier ? null : searchKey)}
-                className="min-h-10 rounded-xl border border-[#CBD7D1] bg-white px-3.5 py-1.5 text-sm font-bold text-[#18314F] transition-colors hover:bg-[#F0F4F2]"
+                className="min-h-10 rounded-xl bg-[#00838f] px-4 py-1.5 text-sm font-bold text-white transition-colors hover:bg-[#006B75]"
               >
                 {showEarlier
                   ? 'Hide earlier buses'
@@ -526,8 +526,8 @@ export function JourneyPlannerView({
           </div>
 
           {loadingSchedules ? (
-            <div className="flex items-center justify-center gap-3 rounded-2xl border border-[#DCE4DF] bg-white p-10 text-sm font-semibold text-[#455952]">
-              <Loader2 className="h-5 w-5 animate-spin text-[#0F5C4A]" aria-hidden="true" />
+            <div className="flex items-center justify-center gap-3 rounded-2xl border border-[#DCE4E4] bg-white p-10 text-sm font-semibold text-[#455952]">
+              <Loader2 className="h-5 w-5 animate-spin text-[#00838f]" aria-hidden="true" />
               <span>Finding buses between {fromPlace!.label} and {toPlace!.label}…</span>
             </div>
           ) : visibleMatches.length > 0 ? (
@@ -545,8 +545,8 @@ export function JourneyPlannerView({
               ))}
             </div>
           ) : (
-            <div className="rounded-2xl border border-[#DCE4DF] bg-white p-6 text-center sm:p-8">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EEF4F1] text-[#0F5C4A]">
+            <div className="rounded-2xl border border-[#DCE4E4] bg-white p-6 text-center sm:p-8">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E4F4F6] text-[#00838f]">
                 <Bus className="h-6 w-6" aria-hidden="true" />
               </div>
 
@@ -563,7 +563,7 @@ export function JourneyPlannerView({
                     <button
                       type="button"
                       onClick={() => setShowEarlierKey(searchKey)}
-                      className="min-h-11 rounded-xl bg-[#0F5C4A] px-4 py-2 text-sm font-bold text-white hover:bg-[#0A4638]"
+                      className="min-h-11 rounded-xl bg-[#00838f] px-4 py-2 text-sm font-bold text-white hover:bg-[#006B75]"
                     >
                       Show all {earlierCount} earlier buses
                     </button>
@@ -573,7 +573,7 @@ export function JourneyPlannerView({
                         setSelectedDay(tomorrowCode)
                         setTimeMode('all')
                       }}
-                      className="min-h-11 rounded-xl border border-[#CBD7D1] bg-white px-4 py-2 text-sm font-bold text-[#18314F] hover:bg-[#F2F6F4]"
+                      className="min-h-11 rounded-xl border-2 border-[#00838f] bg-white px-4 py-2 text-sm font-bold text-[#006B75] hover:bg-[#E4F4F6]"
                     >
                       Check tomorrow ({DAY_FULL_NAMES[tomorrowCode]})
                     </button>
@@ -597,7 +597,7 @@ export function JourneyPlannerView({
                           setSelectedDay(alternativeDaySuggestion.day)
                           setTimeMode('all')
                         }}
-                        className="min-h-11 rounded-xl bg-[#0F5C4A] px-4 py-2 text-sm font-bold text-white hover:bg-[#0A4638]"
+                        className="min-h-11 rounded-xl bg-[#00838f] px-4 py-2 text-sm font-bold text-white hover:bg-[#006B75]"
                       >
                         Check {DAY_FULL_NAMES[alternativeDaySuggestion.day]} ({alternativeDaySuggestion.count} buses)
                       </button>
@@ -606,7 +606,7 @@ export function JourneyPlannerView({
                       <button
                         type="button"
                         onClick={() => setHideSchoolOnly(false)}
-                        className="min-h-11 rounded-xl border border-[#CBD7D1] bg-white px-4 py-2 text-sm font-bold text-[#18314F] hover:bg-[#F2F6F4]"
+                        className="min-h-11 rounded-xl border-2 border-[#00838f] bg-white px-4 py-2 text-sm font-bold text-[#006B75] hover:bg-[#E4F4F6]"
                       >
                         Include school-day buses
                       </button>
@@ -622,7 +622,7 @@ export function JourneyPlannerView({
                             )
                             if (dumfries) onChangeTo(dumfries)
                           }}
-                          className="min-h-11 rounded-xl border border-[#CBD7D1] bg-white px-4 py-2 text-sm font-bold text-[#18314F] hover:bg-[#F2F6F4]"
+                          className="min-h-11 rounded-xl border-2 border-[#00838f] bg-white px-4 py-2 text-sm font-bold text-[#006B75] hover:bg-[#E4F4F6]"
                         >
                           Search {fromPlace!.label} → Dumfries
                         </button>
